@@ -1,0 +1,815 @@
+<title>Ghoshal Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky top bar with tabs, single centred column (max 1120px), cards only for charts/tables */
+:root{
+  --bg:#f4f6f5; --surface:#ffffff; --sunk:#eaeeec; --ink:#14201c; --ink-2:#465651; --muted:#76847f; --line:#dbe2df;
+  --accent:#0d6a5b; --accent-ink:#ffffff; --accent-soft:#d9efe9;
+  --spend:#2a78d6; --income:#eb6834; --good:#1d7a3b; --warn:#a86400; --bad:#c03a39;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101614; --surface:#18201d; --sunk:#1f2926; --ink:#e8eeeb; --ink-2:#b2bfba; --muted:#8a9792; --line:#2a3531;
+  --accent:#43b89f; --accent-ink:#06201a; --accent-soft:#173a32;
+  --spend:#3987e5; --income:#d95926; --good:#4cc072; --warn:#e2a43c; --bad:#ec6c6b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101614; --surface:#18201d; --sunk:#1f2926; --ink:#e8eeeb; --ink-2:#b2bfba; --muted:#8a9792; --line:#2a3531;
+  --accent:#43b89f; --accent-ink:#06201a; --accent-soft:#173a32;
+  --spend:#3987e5; --income:#d95926; --good:#4cc072; --warn:#e2a43c; --bad:#ec6c6b; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:700}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-block:10px}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand h1{font-size:20px;font-weight:700}
+.brand span{color:var(--muted);font-size:12px}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-left:auto}
+nav.tabs a{color:var(--ink-2);text-decoration:none;padding:6px 12px;border-radius:999px;font-weight:500;white-space:nowrap}
+nav.tabs a:hover{background:var(--sunk)}
+nav.tabs a[aria-current="page"]{background:var(--ink);color:var(--surface)}
+nav.tabs .badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--warn);color:#fff;font-size:11px;text-align:center}
+main{padding-block:20px 48px}
+section.view{display:flex;flex-direction:column;gap:20px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.filters label{display:flex;flex-direction:column;gap:2px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+select,input[type=text],input[type=number],input[type=search]{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:0}
+select:focus-visible,input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 14px;font-weight:500}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+button.link{border:none;background:none;color:var(--accent);padding:0;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.kpi .val{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
+.kpi .sub{font-size:12px;color:var(--ink-2)}
+.up{color:var(--bad)} .down{color:var(--good)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card .note{font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--f-body)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.45;white-space:nowrap;transform:translateX(-50%);z-index:3}
+.tip b{font-weight:600}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar-row{display:grid;grid-template-columns:minmax(0,9.5rem) minmax(0,1fr) 6.5rem;gap:10px;align-items:center;font-size:13px}
+.bar-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-row button.nm{border:none;background:none;padding:0;text-align:left;color:var(--ink);font-weight:500}
+.bar-row button.nm:hover{color:var(--accent);text-decoration:underline}
+.bar-row .amt{text-align:right}
+.track{position:relative;height:12px;background:var(--sunk);border-radius:3px}
+.fill{position:absolute;left:0;top:0;bottom:0;background:var(--spend);border-radius:0 4px 4px 0;min-width:2px}
+.fill.over{background:var(--bad)}
+.bmark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;white-space:nowrap}
+td.desc{max-width:340px;overflow-wrap:anywhere}
+td.date{white-space:nowrap;color:var(--ink-2)}
+td select{padding:3px 6px;font-size:12px;max-width:170px}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--sunk);color:var(--ink-2);white-space:nowrap}
+.chip.spend{background:color-mix(in srgb,var(--spend) 16%,transparent);color:var(--ink)}
+.chip.income{background:color-mix(in srgb,var(--income) 18%,transparent);color:var(--ink)}
+.chip.transfer{background:var(--sunk);color:var(--muted)}
+.chip.warn{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--ink)}
+.chip.good{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--ink)}
+.muted{color:var(--muted)}
+.banner{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.banner.warn{border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+.drop{border:2px dashed var(--line);border-radius:14px;background:var(--surface);padding:32px 16px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;cursor:pointer}
+.drop.on{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{font-family:var(--f-display);font-size:18px}
+.filecard{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.filecard .row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px}
+.stats b{font-weight:600}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.mapgrid label{display:flex;flex-direction:column;gap:2px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.how{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.how div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px}
+.how b{display:block;margin-bottom:2px}
+.progress{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.progress>div{height:100%;background:var(--accent);width:0;transition:width .2s}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;z-index:20;max-width:calc(100% - 32px)}
+.empty{padding:28px 16px;text-align:center;color:var(--ink-2)}
+.split{display:flex;height:14px;border-radius:4px;overflow:hidden;gap:2px;background:var(--surface)}
+.split>div{height:100%}
+.inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (max-width:820px){.grid2{grid-template-columns:minmax(0,1fr)}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}nav.tabs{margin-left:0;width:100%}}
+@media (max-width:460px){.bar-row{grid-template-columns:minmax(0,7rem) minmax(0,1fr) 5.6rem}.kpi .val{font-size:21px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top"><div class="wrap">
+  <div class="brand"><h1>Ghoshal Ledger</h1><span id="status">Loading…</span></div>
+  <nav class="tabs" id="tabs">
+    <a href="#overview" data-v="overview">Overview</a>
+    <a href="#transactions" data-v="transactions">Transactions</a>
+    <a href="#review" data-v="review" data-edit>Review<span class="badge" id="revBadge" hidden></span></a>
+    <a href="#import" data-v="import" data-edit>Upload</a>
+    <a href="#setup" data-v="setup">Setup</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+  <div id="gate" class="banner" hidden></div>
+
+  <section class="view" id="v-overview">
+    <div class="filters">
+      <label>Period<select id="fPeriod"></select></label>
+      <label>Person<select id="fMember"></select></label>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <div class="head"><h2>Money in and out, by month</h2>
+        <div class="legend"><span><i style="background:var(--spend)"></i>Spending</span><span><i style="background:var(--income)"></i>Income</span></div></div>
+      <div class="chart" id="monthChart"></div>
+      <div class="note">Card bills paid from chequing count as transfers when the matching card statement is uploaded, so each purchase is counted once.</div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="head"><h2>Spending by category</h2><span class="note" id="catNote"></span></div><div class="bars" id="catBars"></div></div>
+      <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+        <div class="card"><div class="head"><h2>Spending by account</h2></div><div class="bars" id="acctBars"></div></div>
+        <div class="card"><div class="head"><h2>Canada and India</h2></div><div id="countrySplit"></div></div>
+        <div class="card"><div class="head"><h2>Top merchants</h2></div><div class="bars" id="merchBars"></div></div>
+      </div>
+    </div>
+    <div class="card"><div class="head"><h2>Fixed costs this period</h2><span class="note">Budget is monthly amount × months in the period</span></div><div class="tablewrap" id="fixedTable"></div></div>
+  </section>
+
+  <section class="view" id="v-transactions" hidden>
+    <div class="filters">
+      <label>Search<input type="search" id="tQ" placeholder="Merchant or note"></label>
+      <label>Period<select id="tPeriod"></select></label>
+      <label>Account<select id="tAcct"></select></label>
+      <label>Category<select id="tCat"></select></label>
+      <label>Counts as<select id="tKind"><option value="all">Anything</option><option value="spend">Spending</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
+    </div>
+    <div class="card"><div class="head"><h2 id="tTitle">Transactions</h2><span class="note" id="tSum"></span></div><div class="tablewrap" id="tTable"></div></div>
+  </section>
+
+  <section class="view" id="v-review" hidden>
+    <div class="banner"><h2>Needs a category</h2><div class="muted">Pick a category for each item. Tick “all like this” to save a rule, so future uploads from that merchant are sorted automatically.</div></div>
+    <div class="card"><div class="tablewrap" id="rTable"></div></div>
+  </section>
+
+  <section class="view" id="v-import" hidden>
+    <label class="drop" id="drop" for="fileIn">
+      <strong>Drop statements here</strong>
+      <span class="muted">CSV files from your banks, or Rogers Bank PDF statements. You can drop several at once; anything already in the ledger is skipped.</span>
+      <span><button type="button" class="primary" id="pickBtn">Choose files</button></span>
+      <input type="file" id="fileIn" multiple accept=".csv,.pdf,text/csv,application/pdf" hidden>
+    </label>
+    <div id="files" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="card"><div class="head"><h2>Saved uploads</h2><span class="note">Everything here is stored with the page and is there next time you open it</span></div><div class="tablewrap" id="upHist"><div class="empty">No uploads yet.</div></div></div>
+    <div class="how">
+      <div><b>CIBC credit card</b>Online banking → the card → <i>Download transactions</i> → CSV. No header row; card numbers are not saved.</div>
+      <div><b>CIBC chequing</b>Same steps on the chequing account. You confirm the account name before adding.</div>
+      <div><b>Rogers Bank Mastercard</b>Upload the monthly PDF statement, or a CSV from the Rogers Bank site.</div>
+      <div><b>Simplii, Wealthsimple, ICICI, IDFC</b>Any CSV with a header row. The first time, you match its columns once and the page remembers the layout.</div>
+      <div><b>Old Google Sheet</b>In the sheet, open <i>Master Data</i> → File → Download → CSV, then drop it here. Do the same for <i>Categories</i> to bring your keyword rules.</div>
+    </div>
+  </section>
+
+  <section class="view" id="v-setup" hidden>
+    <div class="card"><div class="head"><h2>Categories</h2><span class="note">Decide what each category counts as. Transfers are left out of income and spending.</span></div><div class="tablewrap" id="catTable"></div></div>
+    <div class="grid2">
+      <div class="card"><div class="head"><h2>Accounts</h2></div><div class="tablewrap" id="acctTable"></div></div>
+      <div class="card"><div class="head"><h2>Card payments</h2></div><div id="cardInfo"></div>
+        <div class="head"><h2>Exchange rate</h2></div>
+        <div class="inline"><label for="fxInr">1 INR in CAD</label><input type="number" step="0.0001" id="fxInr" style="width:110px"><span class="note">Used for new ICICI and IDFC uploads</span></div>
+        <div class="head"><h2>Your data</h2></div>
+        <div class="inline"><button id="exportBtn">Download all as CSV</button><span class="note" id="exportNote"></span></div>
+      </div>
+    </div>
+    <div class="card"><div class="head"><h2>Sorting rules</h2><span class="note">If a description contains the keyword, it gets the category. Checked top to bottom.</span></div>
+      <div class="inline" data-edit><input type="text" id="ruleK" placeholder="Keyword, e.g. FRESHCO"><select id="ruleC"></select><button id="ruleAdd">Add rule</button></div>
+      <div class="tablewrap" id="ruleTable"></div></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+// ---------- helpers ----------
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const CAD = new Intl.NumberFormat("en-CA", {style:"currency", currency:"CAD"});
+const CAD0 = new Intl.NumberFormat("en-CA", {style:"currency", currency:"CAD", maximumFractionDigits:0});
+const money = v => CAD.format(v || 0);
+const money0 = v => CAD0.format(Math.round(v || 0));
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MON = Object.fromEntries(MONTHS.map((m,i)=>[m,i+1]));
+const pad = n => String(n).padStart(2,"0");
+const mLabel = m => MONTHS[+m.slice(5,7)-1] + " " + m.slice(0,4);
+const mShort = m => MONTHS[+m.slice(5,7)-1];
+function addMonths(m, k){ let y=+m.slice(0,4), mo=+m.slice(5,7)-1+k; y+=Math.floor(mo/12); mo=((mo%12)+12)%12; return y+"-"+pad(mo+1); }
+function monthsBetween(a,b){ const out=[]; for(let m=a; m<=b && out.length<400; m=addMonths(m,1)) out.push(m); return out; }
+const today = new Date(); const thisMonth = today.getFullYear()+"-"+pad(today.getMonth()+1);
+function dayNum(d){ return Date.UTC(+d.slice(0,4), +d.slice(5,7)-1, +d.slice(8,10))/864e5; }
+function fnv(s, seed){ let h = seed>>>0; for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h>>>0).toString(36); }
+const norm = s => String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+let toastT; function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, 3500); }
+
+// ---------- built-in knowledge ----------
+const TOP_RULES = [ // always first: card-side payments and rewards
+  ["PAYMENT - THANK YOU","Card Payment"],["PAYMENT, THANK YOU","Card Payment"],["PAYMENT THANK YOU","Card Payment"],["PAIEMENT","Card Payment"],
+  ["CASHBACK","Cashback"],["CASH BACK","Cashback"]];
+const BUILTIN_RULES = [
+  ["CIBC CARD","Credit Cards"],["MASTERCARD, ROG","Credit Cards"],["ROGERS BANK","Credit Cards"],["MBNA","Credit Cards"],
+  ["UBERONE","Subscriptions"],["UBEREATS","Dining"],["UBER* EATS","Dining"],["UBER EATS","Dining"],["SKIPTHEDISHES","Dining"],["DOORDASH","Dining"],
+  ["TIM HORTONS","Dining"],["MCDONALD","Dining"],["STARBUCKS","Dining"],["SECOND CUP","Dining"],["SUBWAY","Dining"],["PIZZA","Dining"],["RESTAURA","Dining"],
+  ["CAFE","Dining"],["COFFEE","Dining"],["BISTRO","Dining"],["GRILL","Dining"],["SWEETS","Dining"],["HAKKA","Dining"],["MITHAI","Dining"],["KOREAN BBQ","Dining"],
+  ["COSTCO GAS","Gas"],["PETRO-CANADA","Gas"],["ESSO","Gas"],["SHELL ","Gas"],["PIONEER","Gas"],["ULTRAMAR","Gas"],
+  ["COSTCO *ANNUAL","Subscriptions"],["COSTCO","Groceries"],["WAL-MART","Groceries"],["WALMART","Groceries"],["WMT SUPRCTR","Groceries"],["METRO ","Groceries"],
+  ["FOOD BASICS","Groceries"],["NOFRILLS","Groceries"],["NO FRILLS","Groceries"],["FRESHCO","Groceries"],["SUPERMARKET","Groceries"],["BAZAAR","Groceries"],
+  ["MEAT","Groceries"],["HEALTHY PLANET","Groceries"],["FOODS","Groceries"],["LOBLAWS","Groceries"],
+  ["PARKING","Transport"],["PRESTO","Transport"],["THP - CREDIT VALLEY","Transport"],["CITY OF MISSISSAUGA","Transport"],["UBER","Transport"],["LYFT","Transport"],
+  ["AMZN","Shopping"],["AMAZON","Shopping"],["TEMU","Shopping"],["DOLLARAMA","Shopping"],["CARTERS","Shopping"],["NIKE","Shopping"],["WINNERS","Shopping"],
+  ["INSURANCE","Insurance"],["FIDO","Phone"],["ROGERS ******","Phone"],
+  ["ANTHROPIC","Subscriptions"],["SCRIBD","Subscriptions"],["NETFLIX","Subscriptions"],["SPOTIFY","Subscriptions"],["DISNEY","Subscriptions"],
+  ["LIFELABS","Health"],["PHARMA","Health"],["SHOPPERS DRUG","Health"],["GLOWZONE","Entertainment"],["CINEPLEX","Entertainment"]];
+const BUILTIN_KIND = {"Card Payment":"transfer","Transfer":"transfer","Own Transfer":"transfer","Cashback":"income","Uncategorized":"auto"};
+const DEFAULT_ACCOUNTS = {"CIBC":{member:"Joint / Family",country:"Canada"},"CIBC Mastercard":{member:"Husband",country:"Canada"},"RogersBank":{member:"Husband",country:"Canada"},
+  "Simplii":{member:"Wife",country:"Canada"},"Wealthsimple":{member:"Joint / Family",country:"Canada"},"ICICI":{member:"Husband",country:"India"},"IDFC":{member:"Husband",country:"India"}};
+const MEMBERS = ["Husband","Wife","Joint / Family"];
+
+// ---------- state ----------
+const S = { db:null, canEdit:false, loaded:false, months:{}, rows:[], cfg:{}, cfgExists:false, derived:null, files:[], view:"overview",
+  f:{period:"ytd", member:"all"}, t:{q:"", period:"l12", acct:"all", cat:"all", kind:"all", limit:150} };
+
+function cfg(){ const c=S.cfg||{}; return { kinds:c.kinds||{}, budgets:c.budgets||{}, accounts:Object.assign({},DEFAULT_ACCOUNTS,c.accounts||{}), rules:c.rules||[], fx:Object.assign({INR:0.01475},c.fx||{}), mappings:c.mappings||{} }; }
+
+// ---------- derived data ----------
+function merchantKey(ds){
+  let s = String(ds).toUpperCase()
+    .replace(/ELECTRONIC FUNDS TRANSFER|PRE-?AUTHORI[SZ]ED DEBIT|INTERNET BANKING|POINT OF SALE|INTERAC|RETAIL PURCHASE|INTERNET BILL PAY|E-TRANSFER|FULFILL REQUEST|BRANCH TRANSACTION|AUTOMATED BANKING MACHINE|\bSQ \*|\bTST-|\bPAY\b/g," ")
+    .replace(/'/g,"").replace(/[^A-Z& ]/g," ").replace(/\s+/g," ").trim();
+  const stop = new Set(["ON","BC","QC","AB","MB","NB","NS","CA","MISSISSAUGA","TORONTO","BRAMPTON","ETOBICOKE","OAKVILLE","THE"]);
+  const w = s.split(" ").filter(x => x.length>1 && !stop.has(x));
+  return w.slice(0,2).join(" ") || String(ds).slice(0,24).toUpperCase();
+}
+function derive(){
+  const c = cfg(); const rows = S.rows;
+  // default kind per category from history (Type column) or sign
+  const tally = {};
+  for (const r of rows){ const k = r.c||"Uncategorized"; const t = tally[k] ||= {i:0,e:0,n:0};
+    t.n++; if (r.t==="I") t.i++; else if (r.t==="E") t.e++; else if ((r.cr||0)>(r.dr||0)) t.i++; else t.e++; }
+  const kindOfCat = cat => c.kinds[cat] || BUILTIN_KIND[cat] || (tally[cat] ? (tally[cat].i > tally[cat].e ? "income" : "spend") : "spend");
+  // match chequing-side card payments to card-side payments
+  const pays = rows.filter(r => r.c==="Card Payment" && (r.cr||0)>0).map(r => ({amt:r.cr, day:dayNum(r.d), used:false}));
+  const matched = new Set(); let unmatched = 0, unmatchedAmt = 0;
+  for (const r of rows){ if (r.c!=="Credit Cards" || !(r.dr>0)) continue;
+    const dn = dayNum(r.d); const p = pays.find(p => !p.used && Math.abs(p.amt - r.dr) < 0.005 && Math.abs(p.day - dn) <= 7);
+    if (p){ p.used = true; matched.add(r.id); } else { unmatched++; unmatchedAmt += r.dr; } }
+  const kindOf = r => {
+    if (r.c==="Credit Cards") return matched.has(r.id) ? "transfer" : (c.kinds["Credit Cards"]==="transfer" ? "transfer" : "spend");
+    const k = kindOfCat(r.c||"Uncategorized");
+    return k==="auto" ? ((r.cr||0)>(r.dr||0) ? "income" : "spend") : k; };
+  // learned merchant → category
+  const learn = {};
+  for (const r of rows){ if (!r.c || r.c==="Uncategorized" || r.c==="Credit Cards") continue; const mk = merchantKey(r.ds); (learn[mk] ||= {})[r.c] = ((learn[mk]||{})[r.c]||0)+1; }
+  const learned = {};
+  for (const [mk, m] of Object.entries(learn)){ const tot = Object.values(m).reduce((a,b)=>a+b,0); const [best,n] = Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; if (n>=2 && n/tot>=0.7) learned[mk]=best; }
+  for (const r of rows){ r._k = kindOf(r); r._mk = merchantKey(r.ds); r._country = (c.accounts[r.a]||{}).country || "Canada"; }
+  const cats = [...new Set([...rows.map(r=>r.c||"Uncategorized"), ...Object.keys(c.kinds), ...Object.keys(c.budgets), "Uncategorized"])].sort((a,b)=>a.localeCompare(b));
+  const accts = [...new Set([...rows.map(r=>r.a)])].sort();
+  const members = [...new Set([...MEMBERS, ...rows.map(r=>r.m).filter(Boolean)])];
+  const monthsAll = Object.keys(S.months).filter(m => (S.months[m]||[]).length).sort();
+  S.derived = {kindOfCat, matched, unmatched, unmatchedAmt, learned, cats, accts, members, monthsAll, tally};
+}
+function categorize(ds, learnedMap){
+  const up = String(ds).toUpperCase(); const c = cfg();
+  for (const [k,cat] of TOP_RULES) if (up.includes(k)) return cat;
+  for (const r of c.rules){ if (!r.k) continue; if (r.x ? up.trim()===String(r.k).toUpperCase().trim() : up.includes(String(r.k).toUpperCase())) return r.c; }
+  const mk = merchantKey(ds); if (learnedMap && learnedMap[mk]) return learnedMap[mk];
+  for (const [k,cat] of BUILTIN_RULES) if (up.includes(k)) return cat;
+  return "Uncategorized";
+}
+
+// ---------- periods ----------
+function periodOptions(){
+  const ms = S.derived ? S.derived.monthsAll : []; const years = [...new Set(ms.map(m=>m.slice(0,4)))].sort().reverse();
+  return [["m0","This month"],["m1","Last month"],["l3","Last 3 months"],["ytd","Year to date"],["l12","Last 12 months"],...years.map(y=>["y"+y, y]),["all","All time"]];
+}
+function periodRange(p){
+  const ms = S.derived.monthsAll; const first = ms[0] || thisMonth;
+  if (p==="m0") return [thisMonth, thisMonth];
+  if (p==="m1") { const m=addMonths(thisMonth,-1); return [m,m]; }
+  if (p==="l3") return [addMonths(thisMonth,-2), thisMonth];
+  if (p==="ytd") return [thisMonth.slice(0,4)+"-01", thisMonth];
+  if (p==="l12") return [addMonths(thisMonth,-11), thisMonth];
+  if (p[0]==="y") return [p.slice(1)+"-01", p.slice(1)+"-12"];
+  return [first < thisMonth ? first : thisMonth, thisMonth];
+}
+const inRange = (r, [a,b]) => { const m = r.d.slice(0,7); return m>=a && m<=b; };
+function totals(rows){ let spend=0, income=0; for (const r of rows){ if (r._k==="spend") spend += (r.dr||0)-(r.cr||0); else if (r._k==="income") income += (r.cr||0)-(r.dr||0); } return {spend, income}; }
+
+// ---------- rendering: overview ----------
+function fillSelect(sel, opts, value){ sel.innerHTML = opts.map(([v,l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); if (opts.some(o=>o[0]===value)) sel.value = value; }
+function renderOverview(){
+  const D = S.derived; fillSelect($("#fPeriod"), periodOptions(), S.f.period);
+  fillSelect($("#fMember"), [["all","Everyone"], ...D.members.map(m=>[m,m])], S.f.member);
+  const range = periodRange(S.f.period); const nMonths = monthsBetween(range[0], range[1]).length;
+  const byMember = r => S.f.member==="all" || r.m===S.f.member;
+  const rows = S.rows.filter(r => byMember(r) && inRange(r, range));
+  const prevRange = [addMonths(range[0],-nMonths), addMonths(range[0],-1)];
+  const prev = totals(S.rows.filter(r => byMember(r) && inRange(r, prevRange)));
+  const t = totals(rows); const saved = t.income - t.spend; const rate = t.income>0 ? saved/t.income : 0;
+  const delta = prev.spend>0 ? (t.spend-prev.spend)/prev.spend : null;
+  const perMonth = t.spend / nMonths;
+  $("#kpis").innerHTML = [
+    ["Spending", money0(t.spend), delta===null ? `${money0(perMonth)} a month` : `<span class="${delta>0?"up":"down"}">${delta>0?"▲":"▼"} ${Math.abs(delta*100).toFixed(0)}%</span> vs previous ${nMonths===1?"month":nMonths+" months"}`],
+    ["Income", money0(t.income), `${money0(t.income/nMonths)} a month`],
+    ["Saved", money0(saved), saved<0 ? `<span class="up">Spent more than came in</span>` : "Income minus spending"],
+    ["Savings rate", t.income>0 ? (rate*100).toFixed(1)+"%" : "–", "Share of income kept"]
+  ].map(([l,v,s]) => `<div class="kpi"><span class="lab">${l}</span><span class="val">${v}</span><span class="sub">${s}</span></div>`).join("");
+  // month chart
+  let chartMonths = nMonths>=6 ? monthsBetween(range[0], range[1]) : monthsBetween(addMonths(range[1],-11), range[1]);
+  if (chartMonths.length>36) chartMonths = chartMonths.slice(-36);
+  const mm = {}; for (const m of chartMonths) mm[m] = {spend:0, income:0};
+  for (const r of S.rows){ if (!byMember(r)) continue; const m = r.d.slice(0,7); if (!mm[m]) continue;
+    if (r._k==="spend") mm[m].spend += (r.dr||0)-(r.cr||0); else if (r._k==="income") mm[m].income += (r.cr||0)-(r.dr||0); }
+  drawMonthChart(chartMonths, mm);
+  // categories
+  const c = cfg(); const catSum = {};
+  for (const r of rows) if (r._k==="spend") catSum[r.c||"Uncategorized"] = (catSum[r.c||"Uncategorized"]||0) + (r.dr||0)-(r.cr||0);
+  const catList = Object.entries(catSum).filter(([,v])=>Math.abs(v)>=0.005).sort((a,b)=>b[1]-a[1]);
+  const maxCat = Math.max(1, ...catList.map(([k,v]) => Math.max(v, (c.budgets[k]||0)*nMonths)));
+  $("#catNote").textContent = catList.length ? `${catList.length} categories · line marks budget` : "";
+  $("#catBars").innerHTML = catList.length ? catList.map(([k,v]) => {
+    const b = (c.budgets[k]||0)*nMonths; const over = b>0 && v>b*1.02;
+    return `<div class="bar-row"><button class="nm" data-cat="${esc(k)}" title="Show ${esc(k)} transactions">${esc(k)}</button>
+      <div class="track" title="${esc(k)}: ${money(v)}${b?` of ${money0(b)} budget`:""}"><div class="fill${over?" over":""}" style="width:${Math.max(0,v)/maxCat*100}%"></div>${b?`<div class="bmark" style="left:${b/maxCat*100}%"></div>`:""}</div>
+      <span class="amt">${money0(v)}</span></div>`; }).join("") : `<div class="empty">No spending in this period.</div>`;
+  // accounts
+  const acc = {}; for (const r of rows) if (r._k==="spend") acc[r.a] = (acc[r.a]||0) + (r.dr||0)-(r.cr||0);
+  barList($("#acctBars"), Object.entries(acc).sort((a,b)=>b[1]-a[1]));
+  // merchants
+  const mer = {}; for (const r of rows) if (r._k==="spend" && r.c!=="Credit Cards" && r.c!=="Rent") mer[r._mk] = (mer[r._mk]||0) + (r.dr||0)-(r.cr||0);
+  barList($("#merchBars"), Object.entries(mer).sort((a,b)=>b[1]-a[1]).slice(0,8), true);
+  // country
+  const ca = totals(rows.filter(r=>r._country!=="India")), inn = totals(rows.filter(r=>r._country==="India"));
+  const tot = Math.max(1, ca.spend + inn.spend);
+  $("#countrySplit").innerHTML = (ca.spend+inn.spend)>0 ? `<div class="split" role="img" aria-label="Canada ${money0(ca.spend)}, India ${money0(inn.spend)}"><div style="width:${ca.spend/tot*100}%;background:var(--spend)"></div><div style="width:${inn.spend/tot*100}%;background:var(--income)"></div></div>
+    <div class="legend" style="margin-top:8px"><span><i style="background:var(--spend)"></i>Canada ${money0(ca.spend)}</span><span><i style="background:var(--income)"></i>India ${money0(inn.spend)} (in CAD)</span></div>` : `<div class="empty">No spending in this period.</div>`;
+  // fixed costs
+  const fixed = Object.entries(c.budgets).filter(([,v])=>v>0);
+  $("#fixedTable").innerHTML = fixed.length ? `<table><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th>Status</th></tr></thead><tbody>${
+    fixed.map(([k,b]) => { const bud=b*nMonths, act=catSum[k]||0; const st = act===0 ? `<span class="chip">Nothing yet</span>` : act>bud*1.02 ? `<span class="chip warn">Over by ${money0(act-bud)}</span>` : `<span class="chip good">On track</span>`;
+      return `<tr><td>${esc(k)}</td><td class="num">${money(bud)}</td><td class="num">${money(act)}</td><td>${st}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty">Set monthly budgets in Setup to track fixed costs here.</div>`;
+}
+function barList(el, list, noLink){
+  const max = Math.max(1, ...list.map(x=>x[1]));
+  el.innerHTML = list.length ? list.map(([k,v]) => `<div class="bar-row"><span class="nm" title="${esc(k)}">${esc(k)}</span><div class="track" title="${esc(k)}: ${money(v)}"><div class="fill" style="width:${Math.max(0,v)/max*100}%"></div></div><span class="amt">${money0(v)}</span></div>`).join("") : `<div class="empty">Nothing in this period.</div>`;
+}
+function niceMax(v){ if (v<=0) return 100; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p>=v) return m*p; return 10*p; }
+function drawMonthChart(months, mm){
+  const el = $("#monthChart"); const W = 760, H = 240, L = 52, R = 8, T = 10, B = 26;
+  const max = niceMax(Math.max(...months.map(m => Math.max(mm[m].spend, mm[m].income)), 0));
+  const iw = W-L-R, ih = H-T-B, step = iw/months.length, bw = Math.max(2, Math.min(16, step*0.34));
+  const y = v => T + ih - Math.max(0,v)/max*ih;
+  let g = "";
+  for (let i=0;i<=4;i++){ const v = max*i/4, yy = y(v); g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L-8}" y="${yy+4}" text-anchor="end">${v>=1000?"$"+(v/1000).toFixed(v%1000?1:0)+"k":"$"+v}</text>`; }
+  const every = months.length>18 ? 3 : months.length>12 ? 2 : 1;
+  months.forEach((m,i) => { const cx = L + step*i + step/2; const s = mm[m];
+    const bar = (v, x, col) => { if (v<=0) return ""; const h = Math.max(1, ih*v/max), top = T+ih-h, r = Math.min(4, bw/2, h);
+      return `<path d="M${x},${T+ih} V${top+r} Q${x},${top} ${x+r},${top} H${x+bw-r} Q${x+bw},${top} ${x+bw},${top+r} V${T+ih} Z" fill="${col}"/>`; };
+    g += bar(s.spend, cx-bw-1, "var(--spend)") + bar(s.income, cx+1, "var(--income)");
+    if (i % every === 0) g += `<text x="${cx}" y="${H-8}" text-anchor="middle">${mShort(m)}${(m.endsWith("-01")||i===0)?" "+m.slice(2,4):""}</text>`;
+    g += `<rect class="hit" data-m="${m}" x="${L+step*i}" y="${T}" width="${step}" height="${ih}" fill="transparent"/>`; });
+  g += `<line x1="${L}" x2="${W-R}" y1="${T+ih}" y2="${T+ih}" stroke="var(--muted)" stroke-width="1"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly spending and income, ${esc(mLabel(months[0]))} to ${esc(mLabel(months[months.length-1]))}">${g}</svg><div class="tip" hidden></div>`;
+  const tip = el.querySelector(".tip"), svg = el.querySelector("svg");
+  el.querySelectorAll(".hit").forEach(h => {
+    const show = () => { const m = h.dataset.m, s = mm[m]; const bb = h.getBoundingClientRect(), ob = el.getBoundingClientRect();
+      tip.innerHTML = `<b>${mLabel(m)}</b><br>Spending ${money0(s.spend)}<br>Income ${money0(s.income)}<br>Saved ${money0(s.income-s.spend)}`;
+      tip.hidden = false; const x = bb.left - ob.left + bb.width/2; tip.style.left = Math.min(Math.max(x, 70), ob.width-70)+"px"; tip.style.top = "8px";
+      h.style.fill = "color-mix(in srgb, var(--ink) 7%, transparent)"; };
+    const hide = () => { tip.hidden = true; h.style.fill = ""; };
+    h.addEventListener("mouseenter", show); h.addEventListener("mouseleave", hide);
+    h.addEventListener("click", () => { S.t.period = "custom:"+h.dataset.m; location.hash = "#transactions"; });
+  });
+}
+
+// ---------- rendering: transactions ----------
+function catOptions(sel){ return S.derived.cats.map(c => `<option${c===sel?" selected":""}>${esc(c)}</option>`).join(""); }
+function kindChip(k){ return `<span class="chip ${k}">${k==="spend"?"Spending":k==="income"?"Income":"Transfer"}</span>`; }
+function renderTransactions(){
+  const D = S.derived; const popts = periodOptions();
+  if (S.t.period.startsWith("custom:")) popts.unshift([S.t.period, mLabel(S.t.period.slice(7))]);
+  fillSelect($("#tPeriod"), popts, S.t.period);
+  fillSelect($("#tAcct"), [["all","All accounts"], ...D.accts.map(a=>[a,a])], S.t.acct);
+  fillSelect($("#tCat"), [["all","All categories"], ...D.cats.map(a=>[a,a])], S.t.cat);
+  $("#tKind").value = S.t.kind; $("#tQ").value = S.t.q;
+  const range = S.t.period.startsWith("custom:") ? [S.t.period.slice(7), S.t.period.slice(7)] : periodRange(S.t.period);
+  const q = S.t.q.trim().toUpperCase();
+  const list = S.rows.filter(r => inRange(r, range) && (S.t.acct==="all"||r.a===S.t.acct) && (S.t.cat==="all"||(r.c||"Uncategorized")===S.t.cat) && (S.t.kind==="all"||r._k===S.t.kind) && (!q || String(r.ds).toUpperCase().includes(q)))
+    .sort((a,b) => b.d.localeCompare(a.d) || a.ds.localeCompare(b.ds));
+  const t = totals(list);
+  $("#tTitle").textContent = `${list.length.toLocaleString("en-CA")} transactions`;
+  $("#tSum").textContent = `Spending ${money(t.spend)} · Income ${money(t.income)}`;
+  const shown = list.slice(0, S.t.limit);
+  $("#tTable").innerHTML = list.length ? `<table><thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Person</th><th>Category</th><th>Counts as</th><th class="num">Amount</th></tr></thead><tbody>${
+    shown.map(r => { const amt = (r.cr||0)-(r.dr||0);
+      const orig = r.cu && r.cu!=="CAD" ? `<div class="note muted">${r.cu} ${((r.oc||0)-(r.od||0)).toLocaleString("en-IN",{maximumFractionDigits:2})}</div>` : "";
+      return `<tr><td class="date">${r.d}</td><td class="desc">${esc(r.ds)}</td><td>${esc(r.a)}</td><td class="muted">${esc(r.m||"")}</td>
+        <td>${S.canEdit ? `<select data-id="${r.id}" aria-label="Category">${catOptions(r.c||"Uncategorized")}</select>` : esc(r.c||"Uncategorized")}</td>
+        <td>${kindChip(r._k)}</td><td class="num" style="color:${amt>0?"var(--good)":"var(--ink)"}">${amt>0?"+":""}${money(amt)}${orig}</td></tr>`; }).join("")}</tbody></table>
+    ${list.length>shown.length ? `<div class="empty"><button id="tMore">Show ${Math.min(150, list.length-shown.length)} more</button></div>` : ""}`
+    : `<div class="empty">No transactions match these filters.</div>`;
+  const more = $("#tMore"); if (more) more.onclick = () => { S.t.limit += 150; renderTransactions(); };
+  $("#tTable").querySelectorAll("select[data-id]").forEach(sel => sel.onchange = () => setCategory([sel.dataset.id], sel.value));
+}
+
+// ---------- rendering: review ----------
+function renderReview(){
+  const list = S.rows.filter(r => !r.c || r.c==="Uncategorized").sort((a,b)=>b.d.localeCompare(a.d));
+  const groups = {}; for (const r of list) (groups[r._mk] ||= []).push(r);
+  const entries = Object.entries(groups).sort((a,b)=>b[1].length-a[1].length || b[1][0].d.localeCompare(a[1][0].d));
+  $("#rTable").innerHTML = entries.length ? `<table><thead><tr><th>Merchant</th><th>Example</th><th class="num">Items</th><th class="num">Total</th><th>Category</th><th>All like this</th><th></th></tr></thead><tbody>${
+    entries.slice(0,200).map(([mk, rs], i) => { const tot = rs.reduce((s,r)=>s+(r.cr||0)-(r.dr||0),0);
+      return `<tr><td><b>${esc(mk)}</b></td><td class="desc muted">${esc(rs[0].ds)} · ${rs[0].d} · ${esc(rs[0].a)}</td><td class="num">${rs.length}</td><td class="num">${money(tot)}</td>
+      <td><select id="rc${i}" aria-label="Category for ${esc(mk)}"><option value="">Choose…</option>${S.derived.cats.filter(c=>c!=="Uncategorized").map(c=>`<option>${esc(c)}</option>`).join("")}<option value="__new">New category…</option></select></td>
+      <td><label class="inline"><input type="checkbox" id="rr${i}" checked> save rule</label></td><td><button data-i="${i}" class="primary">Save</button></td></tr>`; }).join("")}</tbody></table>`
+    : `<div class="empty">Everything has a category.</div>`;
+  $("#rTable").querySelectorAll("button[data-i]").forEach(b => b.onclick = async () => {
+    const i = +b.dataset.i, [mk, rs] = entries[i]; let cat = $("#rc"+i).value;
+    if (cat==="__new"){ const box = b.closest("tr").querySelector("td:nth-child(5)"); box.innerHTML = `<input type="text" id="rn${i}" placeholder="Category name">`; $("#rn"+i).focus(); return; }
+    if (!cat){ const inp = $("#rn"+i); cat = inp ? inp.value.trim() : ""; }
+    if (!cat){ toast("Pick a category first."); return; }
+    b.disabled = true;
+    if ($("#rr"+i).checked){ const c = cfg(); const rules = c.rules.slice(); if (!rules.some(r=>r.k.toUpperCase()===mk)) rules.unshift({k:mk, c:cat}); await saveCfg({rules}); }
+    await setCategory(rs.map(r=>r.id), cat);
+  });
+}
+
+// ---------- rendering: setup ----------
+function renderSetup(){
+  const D = S.derived, c = cfg(), dis = S.canEdit ? "" : " disabled";
+  const counts = {}; for (const r of S.rows) counts[r.c||"Uncategorized"] = (counts[r.c||"Uncategorized"]||0)+1;
+  $("#catTable").innerHTML = `<table><thead><tr><th>Category</th><th class="num">Items</th><th>Counts as</th><th class="num">Monthly budget (CAD)</th></tr></thead><tbody>${
+    D.cats.map((k,i) => { const kind = c.kinds[k] || BUILTIN_KIND[k] || ""; const auto = D.kindOfCat(k);
+      return `<tr><td>${esc(k)}${k==="Credit Cards"?`<div class="note muted">Bill payments from chequing</div>`:""}</td><td class="num">${counts[k]||0}</td>
+      <td><select data-kc="${esc(k)}" aria-label="What ${esc(k)} counts as"${dis}>
+        <option value="">Automatic (${auto==="auto"?"by sign":auto==="spend"?"spending":auto})</option>
+        ${k==="Credit Cards"?"":`<option value="spend"${kind==="spend"?" selected":""}>Spending</option><option value="income"${kind==="income"?" selected":""}>Income</option>`}
+        <option value="transfer"${kind==="transfer"&&c.kinds[k]?" selected":""}>Transfer (left out)</option></select></td>
+      <td class="num"><input type="number" min="0" step="1" style="width:110px" data-bc="${esc(k)}" value="${c.budgets[k]||""}" aria-label="Monthly budget for ${esc(k)}"${dis}></td></tr>`; }).join("")}</tbody></table>`;
+  $("#catTable").querySelectorAll("select[data-kc]").forEach(s => s.onchange = () => { const kinds = Object.assign({}, cfg().kinds); if (s.value) kinds[s.dataset.kc] = s.value; else delete kinds[s.dataset.kc]; saveCfg({kinds}); });
+  $("#catTable").querySelectorAll("input[data-bc]").forEach(s => s.onchange = () => { const budgets = Object.assign({}, cfg().budgets); const v = parseFloat(s.value); if (v>0) budgets[s.dataset.bc] = v; else delete budgets[s.dataset.bc]; saveCfg({budgets}); });
+  const accts = [...new Set([...D.accts, ...Object.keys(c.accounts)])].sort();
+  const n = {}; for (const r of S.rows) n[r.a] = (n[r.a]||0)+1;
+  $("#acctTable").innerHTML = `<table><thead><tr><th>Account</th><th class="num">Items</th><th>Person</th><th>Country</th></tr></thead><tbody>${
+    accts.map(a => { const ac = c.accounts[a] || {}; return `<tr><td>${esc(a)}</td><td class="num">${n[a]||0}</td>
+      <td><select data-am="${esc(a)}" aria-label="Person for ${esc(a)}"${dis}>${D.members.map(m=>`<option${m===(ac.member||"Joint / Family")?" selected":""}>${esc(m)}</option>`).join("")}</select></td>
+      <td><select data-ac="${esc(a)}" aria-label="Country for ${esc(a)}"${dis}>${["Canada","India"].map(m=>`<option${m===(ac.country||"Canada")?" selected":""}>${m}</option>`).join("")}</select></td></tr>`; }).join("")}</tbody></table>
+      <div class="note">Person is applied to new uploads from that account.</div>`;
+  $("#acctTable").querySelectorAll("select[data-am],select[data-ac]").forEach(s => s.onchange = () => {
+    const a = s.dataset.am || s.dataset.ac; const accounts = Object.assign({}, (S.cfg||{}).accounts||{}); accounts[a] = Object.assign({}, cfg().accounts[a]||{}, s.dataset.am ? {member:s.value} : {country:s.value}); saveCfg({accounts}); });
+  $("#cardInfo").innerHTML = `<div class="stats"><span><b>${D.matched.size}</b> ${D.matched.size===1?"payment":"payments"} matched to an uploaded card statement (left out as transfers)</span>
+    <span><b>${D.unmatched}</b> ${D.unmatched===1?"payment":"payments"} with no card statement yet (${money0(D.unmatchedAmt)}), counted as spending until you upload that card</span></div>`;
+  $("#fxInr").value = c.fx.INR; $("#fxInr").disabled = !S.canEdit;
+  fillSelect($("#ruleC"), D.cats.filter(x=>x!=="Uncategorized").map(x=>[x,x]), $("#ruleC").value);
+  document.querySelectorAll("[data-edit]").forEach(e => { if (!e.matches("nav a")) e.hidden = !S.canEdit; });
+  $("#ruleTable").innerHTML = c.rules.length ? `<table><thead><tr><th>Keyword</th><th>Category</th><th></th></tr></thead><tbody>${
+    c.rules.map((r,i) => `<tr><td>${esc(r.k)}${r.x?' <span class="chip">exact</span>':""}</td><td>${esc(r.c)}</td><td class="num">${S.canEdit?`<button class="link" data-rd="${i}">Remove</button>`:""}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty">No rules yet. Upload your Categories sheet or add rules from Review.</div>`;
+  $("#ruleTable").querySelectorAll("button[data-rd]").forEach(b => b.onclick = () => { const rules = cfg().rules.slice(); rules.splice(+b.dataset.rd,1); saveCfg({rules}); });
+}
+
+// ---------- writes ----------
+let chain = Promise.resolve();
+function enqueue(fn){ const p = chain.then(fn); chain = p.catch(()=>{}); return p; }
+function errMsg(e){ const code = e && e.code; return code==="quota_exceeded" ? "Storage is full for this page." : code==="not_granted"||code==="revoked" ? "You don't have permission to change this ledger." : "Couldn't save. Check your connection and try again."; }
+function stripRow(r){ const o = {}; for (const k of ["id","d","a","m","ds","c","dr","cr","cu","od","oc","t"]){ const v = r[k]; if (v===undefined||v===null||v===""||v===0) continue; o[k] = (typeof v==="number") ? Math.round(v*100)/100 : v; } return o; }
+// Every write re-reads the saved month first, so two uploads in a row (or two open tabs) never overwrite each other.
+async function readMonth(m){ const snap = await S.db.doc("tx/"+m).get(); return snap.exists ? (((snap.data()||{}).rows)||[]) : []; }
+async function writeMonth(m, rows){ await S.db.doc("tx/"+m).set({rows: rows.map(stripRow), updated: new Date().toISOString()}); S.months[m] = rows; }
+async function mergeMonth(m, incoming){
+  const cur = await readMonth(m); const counts = {}, ids = new Set(cur.map(r => r.id));
+  for (const r of cur){ const k = `${r.a}|${r.d}|${dupAmt(r)}`; counts[k] = (counts[k]||0)+1; }
+  const occ = {}, add = [];
+  for (const r of incoming){ const k = `${r.a}|${r.d}|${dupAmt(r)}`; occ[k] = (occ[k]||0)+1; if (occ[k] <= (counts[k]||0) || ids.has(r.id)) continue; add.push(r); }
+  if (add.length) await writeMonth(m, cur.concat(add));
+  return add.length;
+}
+async function setCategory(ids, cat){
+  const set = new Set(ids); const byMonth = {};
+  for (const r of S.rows) if (set.has(r.id)) byMonth[r.d.slice(0,7)] = true;
+  try { await enqueue(async () => { for (const m of Object.keys(byMonth)){ const rows = (await readMonth(m)).map(r => set.has(r.id) ? Object.assign({}, r, {c:cat, t:undefined}) : r); await writeMonth(m, rows); } });
+    toast(`Moved ${ids.length} ${ids.length===1?"item":"items"} to ${cat}.`); } catch(e){ toast(errMsg(e)); }
+}
+async function saveCfg(patch){
+  try { await enqueue(async () => { const ref = S.db.doc("cfg/main"); const snap = await ref.get(); const next = Object.assign({}, snap.exists ? (snap.data()||{}) : {}, patch); await ref.set(next); S.cfg = next; }); render(); }
+  catch(e){ toast(errMsg(e)); }
+}
+
+// ---------- parsing ----------
+function parseCSV(text){
+  text = text.replace(/^\uFEFF/, ""); const rows = []; let row = [], f = "", q = false;
+  for (let i=0;i<text.length;i++){ const c = text[i];
+    if (q){ if (c==='"'){ if (text[i+1]==='"'){ f+='"'; i++; } else q = false; } else f += c; }
+    else if (c==='"') q = true; else if (c===","){ row.push(f); f=""; }
+    else if (c==="\n"||c==="\r"){ if (c==="\r"&&text[i+1]==="\n") i++; row.push(f); rows.push(row); row=[]; f=""; }
+    else f += c; }
+  if (f!==""||row.length){ row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()!==""));
+}
+function num(s){ if (s==null) return 0; let t = String(s).trim(); if (!t) return 0; let neg = /^\(.*\)$/.test(t) || /-\s*$/.test(t) || /-\s*[$₹]?\s*\d/.test(t);
+  t = t.replace(/[^0-9.]/g, ""); const v = parseFloat(t); return isNaN(v) ? 0 : (neg ? -v : v); }
+function parseDate(s, fmt){
+  s = String(s||"").trim(); let m;
+  if ((m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  if ((m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/))){ let y = m[3].length===2 ? "20"+m[3] : m[3]; let a=+m[1], b=+m[2];
+    if (fmt==="MDY" || (fmt!=="DMY" && a<=12 && b>12)) [a,b] = [b,a]; return `${y}-${pad(b)}-${pad(a)}`; }
+  if ((m = s.match(/^(\d{1,2})[ -]([A-Za-z]{3})[a-z]*[ -,]+(\d{4})/)) && MON[m[2][0].toUpperCase()+m[2].slice(1,3).toLowerCase()]) return `${m[3]}-${pad(MON[m[2][0].toUpperCase()+m[2].slice(1,3).toLowerCase()])}-${pad(m[1])}`;
+  if ((m = s.match(/^([A-Za-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})/)) && MON[m[1][0].toUpperCase()+m[1].slice(1,3).toLowerCase()]) return `${m[3]}-${pad(MON[m[1][0].toUpperCase()+m[1].slice(1,3).toLowerCase()])}-${pad(m[2])}`;
+  return null;
+}
+function guessMapping(header, body){
+  const h = header.map(x => x.trim().toLowerCase()); const find = (...res) => { for (const re of res){ const i = h.findIndex(x => re.test(x)); if (i>=0) return i; } return -1; };
+  const map = { date: find(/^trans(action)?\.? ?date/, /^date$/, /date/), desc: find(/merchant name/, /description|details|narration|particulars|payee|memo/, /transaction$/),
+    debit: find(/debit|withdrawal|funds out|money out|paid out/), credit: find(/credit|deposit|funds in|money in|paid in/), amount: find(/^amount/, /amount/), dateFmt: "auto", neg: "spend" };
+  if (map.debit>=0 && map.credit>=0) map.amount = -1; else { map.debit = -1; map.credit = -1; }
+  if (map.amount>=0){ const vals = body.slice(0,50).map(r => num(r[map.amount])).filter(v=>v); const negs = vals.filter(v=>v<0).length; map.neg = negs > vals.length/2 ? "spend" : "income"; }
+  if (map.date>=0){ const ds = body.slice(0,80).map(r => String(r[map.date]||"")); if (ds.some(d => /^(\d{1,2})[-/.](\d{1,2})/.test(d) && +RegExp.$1>12)) map.dateFmt = "DMY"; else if (ds.some(d => /^(\d{1,2})[-/.](\d{1,2})/.test(d) && +RegExp.$2>12)) map.dateFmt = "MDY"; }
+  return map;
+}
+function looksLikeDate(s){ return !!parseDate(s, "auto"); }
+
+async function readFile(file){
+  const name = file.name; const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf") || file.type==="application/pdf") return readPdf(file);
+  const text = await file.text(); const rows = parseCSV(text);
+  if (!rows.length) return {name, error:"This file is empty."};
+  const hi = rows.slice(0, 15).findIndex(r => r.length>=3 && r.some(c => /date/i.test(c)) && r.some(c => /amount|debit|credit|withdraw|deposit|funds/i.test(c)) && !r.some(c => looksLikeDate(c)));
+  if (hi>0) rows = rows.slice(hi);
+  const h = rows[0].map(x => x.trim());
+  if (h.includes("Debit (CAD)") && h.includes("Account")) return readLedger(name, rows);
+  const hl = h.map(x => x.toLowerCase());
+  if (hl.includes("merchant name") || (hl.includes("posted date") && hl.some(x => x.startsWith("activity"))) || (/rogers/i.test(name) && hl.some(x => /amount/.test(x)))) return readRogersCsv(name, rows);
+  if (h.includes("Keyword") && h.includes("Category")) return readCategories(name, rows);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(h[0]||"")){
+    const card = rows.some(r => r.length>=5 && /\d{4}\*+\d{3,4}/.test(r[4]||""));
+    const items = rows.map(r => ({d:r[0].trim(), ds:(r[1]||"").trim(), dr:Math.abs(num(r[2])), cr:Math.abs(num(r[3]))})).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.d));
+    return {name, kind: card ? "CIBC credit card" : "CIBC bank account", account: card ? "CIBC Mastercard" : "CIBC", askAccount: !card, items, cu:"CAD"};
+  }
+  const body = rows.slice(1); const sig = norm(h.join("|"));
+  const saved = cfg().mappings[sig];
+  return {name, kind:"CSV with header", header:h, body, sig, map: saved ? Object.assign({}, saved) : guessMapping(h, body), needsMap:true, account: saved ? saved.account : guessAccount(name), cu: saved ? saved.cu : (/icici|idfc/i.test(name) ? "INR" : "CAD"), askAccount:true};
+}
+function readRogersCsv(name, rows){
+  const h = rows[0].map(x => x.trim().toLowerCase()); const at = (...res) => { for (const re of res){ const i = h.findIndex(x => re.test(x)); if (i>=0) return i; } return -1; };
+  const I = { d: at(/^(transaction |trans\.? )?date$/, /^date/, /date/), ds: at(/^merchant name$/, /description/, /merchant/), city: at(/merchant city/), prov: at(/merchant (state|province)/),
+    amt: at(/^amount$/, /amount/), dr: at(/debit/), cr: at(/credit/), st: at(/status/), type: at(/activity type|type/) };
+  if (I.d<0 || I.ds<0 || (I.amt<0 && I.dr<0)) return {name, error:"This looks like a Rogers Bank file, but it has no date, merchant or amount column. Send it to Claude so the format can be added."};
+  const ds = rows.slice(1).map(r => String(r[I.d]||"")); const dmy = ds.some(d => /^(\d{1,2})[-/.](\d{1,2})/.test(d) && +RegExp.$1>12) ? "DMY" : ds.some(d => /^(\d{1,2})[-/.](\d{1,2})/.test(d) && +RegExp.$2>12) ? "MDY" : "auto";
+  const items = []; let skipped = 0;
+  for (const r of rows.slice(1)){
+    if (I.st>=0 && /declin|reject|cancel/i.test(r[I.st]||"")) { skipped++; continue; }
+    const d = parseDate(r[I.d], dmy); if (!d) continue;
+    let dr = 0, cr = 0;
+    if (I.amt>=0){ const v = num(r[I.amt]); if (v>0) dr = v; else cr = -v; } else { dr = Math.abs(num(r[I.dr])); cr = Math.abs(num(r[I.cr])); }
+    if (!dr && !cr) continue;
+    const desc = [r[I.ds], I.city>=0 ? r[I.city] : "", I.prov>=0 ? r[I.prov] : ""].map(x => String(x||"").trim()).filter(Boolean).join(" ");
+    items.push({d, ds: desc || String(r[I.type]||"").trim(), dr, cr});
+  }
+  if (!items.length) return {name, error:"No transactions found in this Rogers Bank file."};
+  return {name, kind:"Rogers Bank CSV", account:"RogersBank", items, cu:"CAD", note: skipped ? `${skipped} declined ${skipped===1?"charge":"charges"} left out` : ""};
+}
+function guessAccount(name){ const n = name.toLowerCase(); for (const a of ["simplii","wealthsimple","icici","idfc","rogers","cibc"]) if (n.includes(a)) return {simplii:"Simplii",wealthsimple:"Wealthsimple",icici:"ICICI",idfc:"IDFC",rogers:"RogersBank",cibc:"CIBC"}[a]; return ""; }
+function applyMapping(f){
+  const m = f.map; if (m.date<0 || m.desc<0 || (m.amount<0 && (m.debit<0 || m.credit<0))) return [];
+  const out = [];
+  for (const r of f.body){ const d = parseDate(r[m.date], m.dateFmt); if (!d) continue; let dr=0, cr=0;
+    if (m.amount>=0){ const v = num(r[m.amount]); if (m.neg==="spend"){ if (v<0) dr=-v; else cr=v; } else { if (v>0) dr=v; else cr=-v; } }
+    else { dr = Math.abs(num(r[m.debit])); cr = Math.abs(num(r[m.credit])); }
+    if (!dr && !cr) continue; out.push({d, ds:String(r[m.desc]||"").trim(), dr, cr}); }
+  return out;
+}
+function readLedger(name, rows){
+  const h = rows[0].map(x=>x.trim()); const ix = k => h.indexOf(k);
+  const I = {d:ix("Date"), a:ix("Account"), m:ix("Family Member"), ds:ix("Description"), c:ix("Category"), t:ix("Type"), cu:ix("Currency"), od:ix("Debit (Orig)"), oc:ix("Credit (Orig)"), dr:ix("Debit (CAD)"), cr:ix("Credit (CAD)")};
+  const items = [];
+  const dsamp = rows.slice(1).map(r => String(r[I.d]||"").trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.]\d{2,4}/)).filter(Boolean);
+  const dfmt = dsamp.some(m => +m[2]>12) ? "MDY" : "DMY";
+  for (const r of rows.slice(1)){
+    const raw = String(r[I.d]||"").trim(); let d = parseDate(raw, dfmt); if (!d || !r[I.a]) continue;
+    // The old sheet stored midnight dates shifted back to 5–9 pm the previous day; move those forward one day.
+    const tm = raw.match(/\s(\d{1,2}):\d{2}/); if (tm && +tm[1]>=12){ const dt = new Date(Date.UTC(+d.slice(0,4), +d.slice(5,7)-1, +d.slice(8,10)+1)); d = dt.toISOString().slice(0,10); }
+    const cu = (r[I.cu]||"CAD").trim() || "CAD";
+    items.push({d, a:r[I.a].trim(), m:(r[I.m]||"").trim(), ds:(r[I.ds]||"").trim(), c:(r[I.c]||"").trim()||"Uncategorized", t:/^inc/i.test(r[I.t]||"")?"I":/^exp/i.test(r[I.t]||"")?"E":undefined,
+      cu, od: cu!=="CAD" ? Math.abs(num(r[I.od])) : 0, oc: cu!=="CAD" ? Math.abs(num(r[I.oc])) : 0, dr:Math.abs(num(r[I.dr])), cr:Math.abs(num(r[I.cr]))});
+  }
+  return {name, kind:"Old Google Sheet (Master Data)", items: items.filter(x => x.dr||x.cr), ledger:true};
+}
+function readCategories(name, rows){
+  const h = rows[0].map(x=>x.trim()); const rules = [];
+  const kI = h.indexOf("Keyword"), cI = h.indexOf("Category"), pI = h.indexOf("Priority"), xI = h.indexOf("Special Match (Exact)"), xc = h.indexOf("Category", xI);
+  const prio = [];
+  for (const r of rows.slice(1)){ if (r[kI]&&r[cI]) prio.push({k:r[kI].trim(), c:r[cI].trim(), p:+r[pI]||999}); if (xI>=0 && r[xI] && r[xc]) rules.push({k:r[xI].trim(), c:r[xc].trim(), x:true}); }
+  prio.sort((a,b)=>a.p-b.p); for (const p of prio) rules.push({k:p.k, c:p.c});
+  return {name, kind:"Categories sheet (keyword rules)", rules};
+}
+let pdfReady = null;
+function loadPdfJs(){
+  if (pdfReady) return pdfReady;
+  const add = src => new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => no(new Error("load")); document.head.appendChild(s); });
+  const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  pdfReady = add(base+"pdf.min.js").then(() => add(base+"pdf.worker.min.js")).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base+"pdf.worker.min.js"; return window.pdfjsLib; });
+  pdfReady.catch(() => { pdfReady = null; });
+  return pdfReady;
+}
+async function pdfLines(data){
+  const lib = await loadPdfJs(); const doc = await lib.getDocument({data, disableWorker:true, isEvalSupported:false}).promise; const out = [];
+  for (let p=1; p<=doc.numPages; p++){ const page = await doc.getPage(p); const tc = await page.getTextContent(); const rows = [];
+    for (const it of tc.items){ if (!it.str || !it.str.trim()) continue; const y = it.transform[5], x = it.transform[4];
+      let row = rows.find(r => Math.abs(r.y-y)<=2.5); if (!row){ row = {y, its:[]}; rows.push(row); } row.its.push({x, s:it.str}); }
+    rows.sort((a,b)=>b.y-a.y).forEach(r => out.push(r.its.sort((a,b)=>a.x-b.x).map(i=>i.s.trim()).join(" ").replace(/\s+/g," "))); }
+  return out;
+}
+async function readPdf(file){
+  let lines; try { lines = await pdfLines(new Uint8Array(await file.arrayBuffer())); } catch(e){ return {name:file.name, error:"Couldn't read this PDF. If it's a scanned image, download a CSV from the bank instead."}; }
+  const txt = lines.join("\n");
+  const per = txt.match(/Statement Period\s+([A-Z][a-z]{2})\s+\d{1,2},\s*(\d{4})\s*-\s*([A-Z][a-z]{2})\s+\d{1,2},\s*(\d{4})/);
+  if (!/ROGERS/i.test(txt) || !per) return {name:file.name, error:"Only Rogers Bank PDF statements can be read. For other banks, upload a CSV."};
+  const endY = +per[4], endM = MON[per[3]];
+  const re = /^([A-Z][a-z]{2}) (\d{1,2}) ([A-Z][a-z]{2}) (\d{1,2}) (.+?) (-?\$?[\d,]+\.\d{2})$/; const items = [];
+  for (const l of lines){ const m = l.match(re); if (!m || !MON[m[1]] || !MON[m[3]]) continue; const mo = MON[m[1]]; const y = mo>endM ? endY-1 : endY;
+    const v = parseFloat(m[6].replace(/[$,]/g,"")); items.push({d:`${y}-${pad(mo)}-${pad(m[2])}`, ds:m[5], dr:v>0?v:0, cr:v<0?-v:0}); }
+  const nb = txt.match(/New purchases & debits\s+\$?([\d,]+\.\d{2})/), pc = txt.match(/Payments & credits\s+\$?([\d,]+\.\d{2})/);
+  const sum = k => Math.round(items.reduce((s,x)=>s+x[k],0)*100)/100;
+  const check = nb && pc ? (Math.abs(sum("dr")-num(nb[1]))<0.01 && Math.abs(sum("cr")-num(pc[1]))<0.01 ? "ok" : `Statement says purchases ${nb[1]} and credits ${pc[1]}; found ${sum("dr").toFixed(2)} and ${sum("cr").toFixed(2)}. Some lines may be missing.`) : null;
+  return {name:file.name, kind:`Rogers Bank statement, ${per[1]} ${per[2]} – ${per[3]} ${per[4]}`, account:"RogersBank", items, cu:"CAD", check};
+}
+
+// ---------- import staging ----------
+const dupAmt = r => ((r.cu && r.cu!=="CAD" && (r.od||r.oc)) ? (r.od||0)-(r.oc||0) : (r.dr||0)-(r.cr||0)).toFixed(2);
+function stage(f){
+  if (f.error || f.rules) return f;
+  let items = f.needsMap ? applyMapping(f) : f.items;
+  const c = cfg(); const learned = S.derived ? S.derived.learned : {};
+  const counts = {}; for (const r of S.rows){ const k = `${r.a}|${r.d}|${dupAmt(r)}`; counts[k] = (counts[k]||0)+1; }
+  const occ = {}, occId = {}; const fresh = [], prepared = []; let dup = 0;
+  for (const it0 of items){
+    const it = Object.assign({}, it0); it.a = it.a || f.account; if (!it.a) continue;
+    if (!f.ledger){ const cu = f.cu || "CAD"; if (cu!=="CAD"){ const rate = cu==="INR" ? c.fx.INR : (c.fx[cu]||1); it.cu = cu; it.od = it.dr; it.oc = it.cr; it.dr = it.dr*rate; it.cr = it.cr*rate; }
+      it.c = categorize(it.ds, learned); it.m = (c.accounts[it.a]||{}).member || "Joint / Family"; }
+    const amt = dupAmt(it);
+    const k = `${it.a}|${it.d}|${amt}`; occ[k] = (occ[k]||0)+1;
+    const base = `${it.a}|${it.d}|${amt}|${norm(it.ds)}`; occId[base] = (occId[base]||0)+1;
+    it.id = fnv(base+"#"+occId[base], 2166136261) + fnv(base+"#"+occId[base], 0x9747b28c);
+    prepared.push(it);
+    if (occ[k] <= (counts[k]||0)){ dup++; continue; }
+    fresh.push(it); }
+  f.fresh = fresh; f.prepared = prepared; f.dup = dup; f.total = items.length;
+  return f;
+}
+function renderFiles(){
+  const box = $("#files");
+  box.innerHTML = S.files.map((f,i) => {
+    if (f.error) return `<div class="filecard"><div class="row"><b>${esc(f.name)}</b><span class="chip warn">Can't use</span></div><div>${esc(f.error)}</div><div><button data-x="${i}">Dismiss</button></div></div>`;
+    if (f.done) return `<div class="filecard"><div class="row"><b>${esc(f.name)}</b><span class="chip good">Added</span><span class="muted">${esc(f.done)}</span></div></div>`;
+    if (f.rules) return `<div class="filecard"><div class="row"><b>${esc(f.name)}</b><span class="chip">${esc(f.kind)}</span></div><div>${f.rules.length} keyword rules found. They will replace the current rules list (${cfg().rules.length}).</div>
+      <div class="row"><button class="primary" data-go="${i}">Use these rules</button><button data-x="${i}">Cancel</button></div></div>`;
+    const fr = f.fresh||[]; const ds = fr.map(x=>x.d).sort(); const spend = fr.reduce((s,x)=>s+x.dr,0), cred = fr.reduce((s,x)=>s+x.cr,0);
+    const unc = fr.filter(x=>x.c==="Uncategorized").length; const months = new Set(fr.map(x=>x.d.slice(0,7))).size;
+    let mapUI = "";
+    if (f.needsMap){ const opt = (sel) => `<option value="-1">—</option>` + f.header.map((h,j)=>`<option value="${j}"${j===sel?" selected":""}>${esc(h||"Column "+(j+1))}</option>`).join("");
+      const m = f.map; const sample = f.body[0] ? f.body[0].map(esc).join(" · ") : "";
+      mapUI = `<div class="note">First row: ${sample}</div><div class="mapgrid">
+        <label>Date<select data-mf="date" data-i="${i}">${opt(m.date)}</select></label>
+        <label>Description<select data-mf="desc" data-i="${i}">${opt(m.desc)}</select></label>
+        <label>Amount (one column)<select data-mf="amount" data-i="${i}">${opt(m.amount)}</select></label>
+        <label>Or money out<select data-mf="debit" data-i="${i}">${opt(m.debit)}</select></label>
+        <label>…and money in<select data-mf="credit" data-i="${i}">${opt(m.credit)}</select></label>
+        <label>Negative amounts are<select data-mf="neg" data-i="${i}"><option value="spend"${m.neg==="spend"?" selected":""}>Money out</option><option value="income"${m.neg==="income"?" selected":""}>Money in</option></select></label>
+        <label>Date order<select data-mf="dateFmt" data-i="${i}">${[["auto","Automatic"],["DMY","Day/Month/Year"],["MDY","Month/Day/Year"]].map(([v,l])=>`<option value="${v}"${m.dateFmt===v?" selected":""}>${l}</option>`).join("")}</select></label>
+        <label>Currency<select data-mf="cu" data-i="${i}">${["CAD","INR","USD"].map(v=>`<option${(f.cu||"CAD")===v?" selected":""}>${v}</option>`).join("")}</select></label>
+      </div>`; }
+    const acctUI = f.askAccount ? `<label class="inline">Account <input type="text" list="acctList" data-acct="${i}" value="${esc(f.account||"")}" placeholder="e.g. Simplii" style="width:170px"></label>` : `<span class="chip">${esc(f.account||"Several accounts")}</span>`;
+    return `<div class="filecard"><div class="row"><b>${esc(f.name)}</b><span class="chip">${esc(f.kind)}</span>${acctUI}</div>${mapUI}
+      ${f.note ? `<div class="note">${esc(f.note)}</div>` : ""}
+      ${f.needsMap && !fr.length && !f.dup ? `<div><span class="chip warn" style="white-space:normal">No transactions read yet. Pick the date, description and amount columns above.</span></div>` : ""}
+      ${f.check && f.check!=="ok" ? `<div class="chip warn" style="white-space:normal">${esc(f.check)}</div>` : f.check==="ok" ? `<div><span class="chip good">Totals match the statement</span></div>` : ""}
+      <div class="stats"><span><b>${fr.length}</b> new</span><span><b>${f.dup}</b> already in the ledger</span>${fr.length?`<span>${ds[0]} to ${ds[ds.length-1]}</span><span>Out ${money(spend)} · In ${money(cred)}</span><span>${unc} need a category</span>`:""}</div>
+      <div class="progress" id="pg${i}" hidden><div></div></div>
+      <div class="row"><button class="primary" data-go="${i}"${fr.length && (f.account||f.ledger) ?"":" disabled"}>Add ${fr.length} transactions${months>1?` across ${months} months`:""}</button><button data-x="${i}">Cancel</button></div></div>`;
+  }).join("") + `<datalist id="acctList">${(S.derived?S.derived.accts:[]).concat(Object.keys(DEFAULT_ACCOUNTS)).filter((v,i,a)=>a.indexOf(v)===i).map(a=>`<option value="${esc(a)}">`).join("")}</datalist>`;
+  box.querySelectorAll("[data-x]").forEach(b => b.onclick = () => { S.files.splice(+b.dataset.x,1); renderFiles(); });
+  box.querySelectorAll("[data-acct]").forEach(inp => inp.onchange = () => { const f = S.files[+inp.dataset.acct]; f.account = inp.value.trim(); stage(f); renderFiles(); });
+  box.querySelectorAll("[data-mf]").forEach(s => s.onchange = () => { const f = S.files[+s.dataset.i]; const k = s.dataset.mf;
+    if (k==="cu") f.cu = s.value; else f.map[k] = ["neg","dateFmt"].includes(k) ? s.value : +s.value;
+    if (k==="amount" && +s.value>=0){ f.map.debit=-1; f.map.credit=-1; } if ((k==="debit"||k==="credit") && +s.value>=0) f.map.amount=-1;
+    stage(f); renderFiles(); });
+  box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => commitFile(+b.dataset.go, b));
+}
+async function commitFile(i, btn){
+  const f = S.files[i]; btn.disabled = true;
+  if (f.rules){ await saveCfg({rules: f.rules}); f.done = `${f.rules.length} rules saved`; renderFiles(); return; }
+  stage(f); const all = f.prepared||[]; if (!all.length){ renderFiles(); return; }
+  const byM = {}; for (const r of all) (byM[r.d.slice(0,7)] ||= []).push(r);
+  const ms = Object.keys(byM).sort(); const pg = $("#pg"+i); if (pg) pg.hidden = false; let n = 0, added = 0;
+  try {
+    await enqueue(async () => { for (const m of ms){ added += await mergeMonth(m, byM[m]); n++; if (pg) pg.firstElementChild.style.width = (n/ms.length*100)+"%"; } });
+    try { await S.db.collection("uploads").add({name:f.name, kind:f.kind, account:f.account||"Several", added, skipped: all.length-added, from: all.map(x=>x.d).sort()[0], to: all.map(x=>x.d).sort().pop(), at: new Date().toISOString()}); } catch(e){}
+    if (f.needsMap){ const mappings = Object.assign({}, cfg().mappings); mappings[f.sig] = Object.assign({}, f.map, {account:f.account, cu:f.cu}); await saveCfg({mappings}); }
+    if (f.account && !(S.cfg.accounts||{})[f.account] && !DEFAULT_ACCOUNTS[f.account]){ const accounts = Object.assign({}, S.cfg.accounts||{}); accounts[f.account] = {member:"Joint / Family", country: f.cu==="INR"?"India":"Canada"}; await saveCfg({accounts}); }
+    f.done = `${added} transactions saved${all.length-added ? ` (${all.length-added} already there)` : ""}`; toast(`Saved ${added} transactions to the ledger.`);
+  } catch(e){ toast(errMsg(e) + (n ? ` ${n} of ${ms.length} months were saved; upload the file again to finish.` : "")); }
+  renderFiles();
+}
+async function handleFiles(list){
+  for (const file of list){ try { const f = await readFile(file); S.files.unshift(stage(f)); } catch(e){ S.files.unshift({name:file.name, error:"Couldn't read this file."}); } }
+  renderFiles();
+}
+
+// ---------- routing ----------
+const VIEWS = ["overview","transactions","review","import","setup"];
+function route(){ let v = (location.hash||"").slice(1); if (!VIEWS.includes(v)) v = "overview"; if (!S.canEdit && (v==="import"||v==="review")) v = "overview"; S.view = v;
+  VIEWS.forEach(x => { $("#v-"+x).hidden = x!==v; });
+  document.querySelectorAll("#tabs a").forEach(a => { if (a.dataset.v===v) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
+  render(); }
+function render(){
+  if (!S.loaded) return; derive();
+  document.querySelectorAll("#tabs a[data-edit]").forEach(a => a.hidden = !S.canEdit);
+  const unc = S.rows.filter(r => !r.c || r.c==="Uncategorized").length; const bd = $("#revBadge"); bd.hidden = !unc; bd.textContent = unc;
+  const n = S.rows.length; const last = S.rows.reduce((m,r)=>r.d>m?r.d:m, "");
+  $("#status").textContent = n ? `${n.toLocaleString("en-CA")} transactions · latest ${last}${S.canEdit?"":" · view only"}` : (S.canEdit ? "No transactions yet" : "View only");
+  const gate = $("#gate");
+  if (!n){ gate.hidden = false; gate.className = "banner"; gate.innerHTML = S.canEdit
+      ? `<h2>Start by uploading your history</h2><div class="muted">Open <a href="#import">Upload</a> and drop the Master Data CSV from your Google Sheet, then your CIBC card CSV and Rogers PDF statements.</div>`
+      : `<h2>No transactions yet</h2><div class="muted">This ledger is empty. Sourav adds statements from the Upload tab.</div>`; }
+  else gate.hidden = true;
+  if (S.view==="overview") renderOverview(); else if (S.view==="transactions") renderTransactions(); else if (S.view==="review") renderReview(); else if (S.view==="setup") renderSetup(); else if (S.view==="import") renderFiles();
+}
+
+// ---------- events ----------
+$("#fPeriod").onchange = e => { S.f.period = e.target.value; render(); };
+$("#fMember").onchange = e => { S.f.member = e.target.value; render(); };
+$("#tQ").oninput = e => { S.t.q = e.target.value; S.t.limit = 150; clearTimeout(S._qt); S._qt = setTimeout(renderTransactions, 150); };
+$("#tPeriod").onchange = e => { S.t.period = e.target.value; S.t.limit = 150; renderTransactions(); };
+$("#tAcct").onchange = e => { S.t.acct = e.target.value; S.t.limit = 150; renderTransactions(); };
+$("#tCat").onchange = e => { S.t.cat = e.target.value; S.t.limit = 150; renderTransactions(); };
+$("#tKind").onchange = e => { S.t.kind = e.target.value; S.t.limit = 150; renderTransactions(); };
+$("#catBars").addEventListener("click", e => { const b = e.target.closest("[data-cat]"); if (!b) return; S.t.cat = b.dataset.cat; S.t.period = S.f.period; S.t.kind = "all"; S.t.limit = 150; location.hash = "#transactions"; });
+$("#fxInr").onchange = e => { const v = parseFloat(e.target.value); if (v>0) saveCfg({fx: Object.assign({}, cfg().fx, {INR:v})}); };
+$("#ruleAdd").onclick = () => { const k = $("#ruleK").value.trim(), c = $("#ruleC").value; if (!k || !c) { toast("Enter a keyword and pick a category."); return; } saveCfg({rules: [{k, c}, ...cfg().rules]}); $("#ruleK").value = ""; };
+$("#pickBtn").onclick = e => { e.preventDefault(); $("#fileIn").click(); };
+$("#fileIn").onchange = e => { handleFiles([...e.target.files]); e.target.value = ""; };
+const drop = $("#drop");
+["dragenter","dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("on"); }));
+["dragleave","drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("on"); }));
+drop.addEventListener("drop", e => handleFiles([...e.dataTransfer.files]));
+$("#exportBtn").onclick = async () => {
+  const dl = await claude.use("downloads"); if (!dl){ $("#exportNote").textContent = "Downloads aren't available in this view."; return; }
+  const q = v => /[",\n]/.test(String(v??"")) ? `"${String(v).replace(/"/g,'""')}"` : String(v??"");
+  const lines = [["Date","Account","Person","Description","Category","Counts as","Debit (CAD)","Credit (CAD)","Currency","Debit (Orig)","Credit (Orig)"].join(",")];
+  for (const r of [...S.rows].sort((a,b)=>a.d.localeCompare(b.d))) lines.push([r.d,r.a,r.m,r.ds,r.c,r._k,r.dr||"",r.cr||"",r.cu||"CAD",r.od||"",r.oc||""].map(q).join(","));
+  try { await dl.save({filename:`ghoshal-ledger-${new Date().toISOString().slice(0,10)}.csv`, data: lines.join("\n")}); $("#exportNote").textContent = "Saved."; }
+  catch(e){ $("#exportNote").textContent = e && e.code==="declined" ? "Download cancelled." : "Couldn't download the file."; }
+};
+window.addEventListener("hashchange", route);
+
+// ---------- boot ----------
+async function boot(){
+  const loadTimer = setTimeout(() => { if (!S.loaded){ $("#status").textContent = "Still loading…"; } }, 10000);
+  const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+  if (!db){ clearTimeout(loadTimer); $("#status").textContent = "Not signed in"; const g = $("#gate"); g.hidden = false; g.className = "banner warn";
+    g.innerHTML = `<h2>Sign in to see the ledger</h2><div class="muted">Open this page while signed in to claude.ai. The transactions are stored privately with the page.</div>`;
+    VIEWS.forEach(x => $("#v-"+x).hidden = true); return; }
+  S.db = db; S.canEdit = user ? await user.canEdit() : false;
+  let gotTx = false, gotCfg = false;
+  const ready = () => { if (gotTx && gotCfg && !S.loaded){ S.loaded = true; clearTimeout(loadTimer); route(); } else if (S.loaded) render(); };
+  db.collection("tx").limit(1000).onSnapshot(snap => {
+    const months = {}; const rows = [];
+    for (const d of snap.docs){ const data = d.data() || {}; const rs = (data.rows||[]).map(r => Object.assign({}, r)); months[d.id] = rs; for (const r of rs) rows.push(r); }
+    S.months = months; S.rows = rows; gotTx = true; ready();
+  }, e => { clearTimeout(loadTimer); $("#status").textContent = "Couldn't load transactions"; toast(errMsg(e)); });
+  db.collection("uploads").orderBy("at","desc").limit(25).onSnapshot(snap => {
+    const list = snap.docs.map(d => d.data()||{});
+    $("#upHist").innerHTML = list.length ? `<table><thead><tr><th>When</th><th>File</th><th>Account</th><th>Dates</th><th class="num">Saved</th><th class="num">Already there</th></tr></thead><tbody>${
+      list.map(u => `<tr><td class="date">${esc(String(u.at||"").slice(0,16).replace("T"," "))}</td><td class="desc">${esc(u.name)}</td><td>${esc(u.account)}</td><td class="date">${esc(u.from||"")} to ${esc(u.to||"")}</td><td class="num">${u.added||0}</td><td class="num">${u.skipped||0}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No uploads yet.</div>`;
+  }, () => {});
+  db.doc("cfg/main").onSnapshot(snap => { S.cfg = snap.exists ? (snap.data()||{}) : {}; gotCfg = true; ready(); },
+    e => { S.cfg = {}; gotCfg = true; ready(); });
+}
+if (window.claude && claude.use) boot(); else { $("#status").textContent = "Open on claude.ai"; }
+})();
+</script>
