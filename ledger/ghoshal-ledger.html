@@ -547,7 +547,7 @@ function guessMapping(header, body){
   const map = { date: find(/^trans(action)?\.? ?date/, /^date$/, /date/), desc: find(/merchant name/, /description|details|narration|particulars|payee|memo/, /transaction$/),
     debit: find(/debit|withdrawal|funds out|money out|paid out/), credit: find(/credit|deposit|funds in|money in|paid in/), amount: find(/^amount/, /amount/), dateFmt: "auto", neg: "spend" };
   if (map.debit>=0 && map.credit>=0) map.amount = -1; else { map.debit = -1; map.credit = -1; }
-  if (map.amount>=0){ const vals = body.slice(0,50).map(r => num(r[map.amount])).filter(v=>v); const negs = vals.filter(v=>v<0).length; map.neg = negs > vals.length/2 ? "spend" : "income"; }
+  if (map.amount>=0){ const vals = body.slice(0,50).map(r => num(r[map.amount])).filter(v=>v); const negs = vals.filter(v=>v<0).length; const card = /card|visa|mastercard|amex/i.test(header.join(" ")); map.neg = (card && negs < vals.length/2) ? "income" : "spend"; }
   if (map.date>=0){ const ds = body.slice(0,80).map(r => String(r[map.date]||"")); if (ds.some(d => /^(\d{1,2})[-/.](\d{1,2})/.test(d) && +RegExp.$1>12)) map.dateFmt = "DMY"; else if (ds.some(d => /^(\d{1,2})[-/.](\d{1,2})/.test(d) && +RegExp.$2>12)) map.dateFmt = "MDY"; }
   return map;
 }
