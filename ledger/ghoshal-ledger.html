@@ -186,7 +186,9 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
   </section>
 
   <section class="view" id="v-setup" hidden>
-    <div class="card"><div class="head"><h2>Categories</h2><span class="note">Decide what each category counts as. Transfers are left out of income and spending.</span></div><div class="tablewrap" id="catTable"></div></div>
+    <div class="card"><div class="head"><h2>Categories</h2><span class="note">Decide what each category counts as. Transfers are left out of income and spending.</span></div>
+      <div class="inline" data-edit><input type="text" id="newCat" placeholder="New category, e.g. Childcare" style="width:220px" aria-label="New category name"><select id="newCatKind" aria-label="New category counts as"><option value="spend">Spending</option><option value="income">Income</option><option value="transfer">Transfer (left out)</option></select><button id="addCat">Add category</button></div>
+      <div class="tablewrap" id="catTable"></div></div>
     <div class="grid2">
       <div class="card"><div class="head"><h2>Accounts</h2></div><div class="tablewrap" id="acctTable"></div></div>
       <div class="card"><div class="head"><h2>Card payments</h2></div><div id="cardInfo"></div>
@@ -253,7 +255,7 @@ const MEMBERS = ["Husband","Wife","Joint / Family"];
 const S = { db:null, canEdit:false, loaded:false, months:{}, rows:[], cfg:{}, cfgExists:false, derived:null, files:[], view:"overview",
   f:{period:"ytd", member:"all"}, t:{q:"", period:"l12", acct:"all", cat:"all", kind:"all", limit:150} };
 
-function cfg(){ const c=S.cfg||{}; return { kinds:c.kinds||{}, budgets:c.budgets||{}, accounts:Object.assign({},DEFAULT_ACCOUNTS,c.accounts||{}), rules:c.rules||[], fx:Object.assign({INR:0.01475},c.fx||{}), mappings:c.mappings||{} }; }
+function cfg(){ const c=S.cfg||{}; return { kinds:c.kinds||{}, budgets:c.budgets||{}, accounts:Object.assign({},DEFAULT_ACCOUNTS,c.accounts||{}), rules:c.rules||[], fx:Object.assign({INR:0.01475},c.fx||{}), mappings:c.mappings||{}, categories:c.categories||[] }; }
 
 // ---------- derived data ----------
 function merchantKey(ds){
@@ -287,7 +289,7 @@ function derive(){
   const learned = {};
   for (const [mk, m] of Object.entries(learn)){ const tot = Object.values(m).reduce((a,b)=>a+b,0); const [best,n] = Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; if (n>=2 && n/tot>=0.7) learned[mk]=best; }
   for (const r of rows){ r._k = kindOf(r); r._mk = merchantKey(r.ds); r._country = (c.accounts[r.a]||{}).country || "Canada"; }
-  const cats = [...new Set([...rows.map(r=>r.c||"Uncategorized"), ...Object.keys(c.kinds), ...Object.keys(c.budgets), "Uncategorized"])].sort((a,b)=>a.localeCompare(b));
+  const cats = [...new Set([...rows.map(r=>r.c||"Uncategorized"), ...c.categories, ...Object.keys(c.kinds), ...Object.keys(c.budgets), "Uncategorized"])].sort((a,b)=>a.localeCompare(b));
   const accts = [...new Set([...rows.map(r=>r.a)])].sort();
   const members = [...new Set([...MEMBERS, ...rows.map(r=>r.m).filter(Boolean)])];
   const monthsAll = Object.keys(S.months).filter(m => (S.months[m]||[]).length).sort();
@@ -770,6 +772,13 @@ $("#tCat").onchange = e => { S.t.cat = e.target.value; S.t.limit = 150; renderTr
 $("#tKind").onchange = e => { S.t.kind = e.target.value; S.t.limit = 150; renderTransactions(); };
 $("#catBars").addEventListener("click", e => { const b = e.target.closest("[data-cat]"); if (!b) return; S.t.cat = b.dataset.cat; S.t.period = S.f.period; S.t.kind = "all"; S.t.limit = 150; location.hash = "#transactions"; });
 $("#fxInr").onchange = e => { const v = parseFloat(e.target.value); if (v>0) saveCfg({fx: Object.assign({}, cfg().fx, {INR:v})}); };
+$("#addCat").onclick = () => {
+  const name = $("#newCat").value.trim().replace(/\s+/g, " "), kind = $("#newCatKind").value;
+  if (!name) { toast("Type a name for the category."); return; }
+  if (S.derived.cats.some(c => c.toLowerCase() === name.toLowerCase())) { toast(`${name} already exists.`); return; }
+  const c = cfg(); const kinds = Object.assign({}, c.kinds); if (kind !== "spend") kinds[name] = kind;
+  saveCfg({categories: [...c.categories, name], kinds}); $("#newCat").value = ""; toast(`Added ${name}. It now appears in every category list.`);
+};
 $("#ruleAdd").onclick = () => { const k = $("#ruleK").value.trim(), c = $("#ruleC").value; if (!k || !c) { toast("Enter a keyword and pick a category."); return; } saveCfg({rules: [{k, c}, ...cfg().rules]}); $("#ruleK").value = ""; };
 $("#pickBtn").onclick = e => { e.preventDefault(); $("#fileIn").click(); };
 $("#fileIn").onchange = e => { handleFiles([...e.target.files]); e.target.value = ""; };
