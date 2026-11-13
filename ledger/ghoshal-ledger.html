@@ -170,9 +170,9 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
   <section class="view" id="v-import" hidden>
     <label class="drop" id="drop" for="fileIn">
       <strong>Drop statements here</strong>
-      <span class="muted">CSV files from your banks, or Rogers Bank PDF statements. You can drop several at once; anything already in the ledger is skipped.</span>
+      <span class="muted">CSV or Excel files from your banks, or Rogers Bank PDF statements. You can drop several at once; anything already in the ledger is skipped.</span>
       <span><button type="button" class="primary" id="pickBtn">Choose files</button></span>
-      <input type="file" id="fileIn" multiple accept=".csv,.pdf,text/csv,application/pdf" hidden>
+      <input type="file" id="fileIn" multiple accept=".csv,.pdf,.xls,.xlsx,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     </label>
     <div id="files" style="display:flex;flex-direction:column;gap:12px"></div>
     <div class="card"><div class="head"><h2>Saved uploads</h2><span class="note">Everything here is stored with the page and is there next time you open it</span></div><div class="tablewrap" id="upHist"><div class="empty">No uploads yet.</div></div></div>
@@ -180,7 +180,8 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
       <div><b>CIBC credit card</b>Online banking → the card → <i>Download transactions</i> → CSV. No header row; card numbers are not saved.</div>
       <div><b>CIBC chequing</b>Same steps on the chequing account. You confirm the account name before adding.</div>
       <div><b>Rogers Bank Mastercard</b>Upload the monthly PDF statement, or a CSV from the Rogers Bank site.</div>
-      <div><b>Simplii, Wealthsimple, ICICI, IDFC</b>Any CSV with a header row. The first time, you match its columns once and the page remembers the layout.</div>
+      <div><b>ICICI Bank</b>Internet banking → Accounts → Detailed statement → download as XLS. Amounts are converted from INR at the rate in Setup.</div>
+      <div><b>Simplii, Wealthsimple, IDFC</b>Any CSV or Excel file with a header row. The first time, you match its columns once and the page remembers the layout.</div>
       <div><b>Old Google Sheet</b>In the sheet, open <i>Master Data</i> → File → Download → CSV, then drop it here. Do the same for <i>Categories</i> to bring your keyword rules.</div>
     </div>
   </section>
@@ -546,7 +547,7 @@ function parseDate(s, fmt){
 }
 function guessMapping(header, body){
   const h = header.map(x => x.trim().toLowerCase()); const find = (...res) => { for (const re of res){ const i = h.findIndex(x => re.test(x)); if (i>=0) return i; } return -1; };
-  const map = { date: find(/^trans(action)?\.? ?date/, /^date$/, /date/), desc: find(/merchant name/, /description|details|narration|particulars|payee|memo/, /transaction$/),
+  const map = { date: find(/^trans(action)?\.? ?date/, /^date$/, /date/), desc: find(/merchant name/, /description|details|narration|particulars|remarks|payee|memo/, /transaction$/),
     debit: find(/debit|withdrawal|funds out|money out|paid out/), credit: find(/credit|deposit|funds in|money in|paid in/), amount: find(/^amount/, /amount/), dateFmt: "auto", neg: "spend" };
   if (map.debit>=0 && map.credit>=0) map.amount = -1; else { map.debit = -1; map.credit = -1; }
   if (map.amount>=0){ const vals = body.slice(0,50).map(r => num(r[map.amount])).filter(v=>v); const negs = vals.filter(v=>v<0).length; const card = /card|visa|mastercard|amex/i.test(header.join(" ")); map.neg = (card && negs < vals.length/2) ? "income" : "spend"; }
@@ -558,15 +559,19 @@ function looksLikeDate(s){ return !!parseDate(s, "auto"); }
 async function readFile(file){
   const name = file.name; const lower = name.toLowerCase();
   if (lower.endsWith(".pdf") || file.type==="application/pdf") return readPdf(file);
-  const text = await file.text(); const rows = parseCSV(text);
+  let rows;
+  if (/\.xlsx?$/.test(lower) || /spreadsheet|excel/.test(file.type)){
+    try { rows = await sheetRows(file); } catch(e){ return {name, error:"Couldn't open this Excel file. Open it in Excel, save it as CSV and upload that instead."}; }
+  } else rows = parseCSV(await file.text());
   if (!rows.length) return {name, error:"This file is empty."};
-  const hi = rows.slice(0, 15).findIndex(r => r.length>=3 && r.some(c => /date/i.test(c)) && r.some(c => /amount|debit|credit|withdraw|deposit|funds/i.test(c)) && !r.some(c => looksLikeDate(c)));
+  const hi = rows.slice(0, 40).findIndex(r => r.length>=3 && r.some(c => /date/i.test(c)) && r.some(c => /amount|debit|credit|withdraw|deposit|funds/i.test(c)) && !r.some(c => looksLikeDate(c)));
   if (hi>0) rows = rows.slice(hi);
   const h = rows[0].map(x => x.trim());
   if (h.includes("Debit (CAD)") && h.includes("Account")) return readLedger(name, rows);
   const hl = h.map(x => x.toLowerCase());
   if (hl.includes("merchant name") || (hl.includes("posted date") && hl.some(x => x.startsWith("activity"))) || (/rogers/i.test(name) && hl.some(x => /amount/.test(x)))) return readRogersCsv(name, rows);
   if (h.includes("Keyword") && h.includes("Category")) return readCategories(name, rows);
+  if (hl.includes("transaction remarks") && hl.some(x => x.startsWith("withdrawal amount"))) return readIciciStatement(name, rows);
   if (/^\d{4}-\d{2}-\d{2}$/.test(h[0]||"")){
     const card = rows.some(r => r.length>=5 && /\d{4}\*+\d{3,4}/.test(r[4]||""));
     const items = rows.map(r => ({d:r[0].trim(), ds:(r[1]||"").trim(), dr:Math.abs(num(r[2])), cr:Math.abs(num(r[3]))})).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.d));
@@ -628,6 +633,31 @@ function readCategories(name, rows){
   for (const r of rows.slice(1)){ if (r[kI]&&r[cI]) prio.push({k:r[kI].trim(), c:r[cI].trim(), p:+r[pI]||999}); if (xI>=0 && r[xI] && r[xc]) rules.push({k:r[xI].trim(), c:r[xc].trim(), x:true}); }
   prio.sort((a,b)=>a.p-b.p); for (const p of prio) rules.push({k:p.k, c:p.c});
   return {name, kind:"Categories sheet (keyword rules)", rules};
+}
+function readIciciStatement(name, rows){
+  const h = rows[0].map(x => String(x).trim().toLowerCase()); const at = re => h.findIndex(x => re.test(x));
+  const I = { d: at(/^transaction date$/)>=0 ? at(/^transaction date$/) : at(/date/), ds: at(/transaction remarks/), dr: at(/^withdrawal amount/), cr: at(/^deposit amount/) };
+  const cu = ((h[I.dr]||"").match(/\(([a-z]{3})\)/)||[0,"inr"])[1].toUpperCase();
+  const items = [];
+  for (const r of rows.slice(1)){
+    const d = parseDate(r[I.d], "DMY"); if (!d) continue;
+    const dr = Math.abs(num(r[I.dr])), cr = Math.abs(num(r[I.cr])); if (!dr && !cr) continue;
+    items.push({d, ds:String(r[I.ds]||"").trim().replace(/\s+/g," "), dr, cr});
+  }
+  if (!items.length) return {name, error:"No transactions found in this ICICI statement."};
+  return {name, kind:"ICICI Bank statement", account:"ICICI", items, cu};
+}
+let xlsxReady = null;
+function loadSheetJs(){
+  if (xlsxReady) return xlsxReady;
+  xlsxReady = new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error("load")); document.head.appendChild(s); });
+  xlsxReady.catch(() => { xlsxReady = null; });
+  return xlsxReady;
+}
+async function sheetRows(file){
+  const X = await loadSheetJs(); const wb = X.read(new Uint8Array(await file.arrayBuffer()), {type:"array"});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return X.utils.sheet_to_json(ws, {header:1, raw:false, defval:""}).map(r => r.map(c => String(c ?? "").trim())).filter(r => r.some(c => c !== ""));
 }
 let pdfReady = null;
 function loadPdfJs(){
