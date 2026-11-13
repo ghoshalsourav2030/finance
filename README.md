@@ -37,6 +37,7 @@ Each category counts as **Spending**, **Income** or **Transfer** (set in Setup).
 | CIBC chequing | CSV, no header: date, description, debit, credit | ISO date in column 1, 4 columns |
 | Rogers Bank | PDF statement | "Statement Period" line; totals are checked against the statement summary |
 | ICICI Bank | Detailed statement (.xls) | `Transaction Remarks` + `Withdrawal Amount(INR)` columns; INR converted at the Setup rate |
+| IDFC FIRST Bank | Account statement (.xlsx) | IFSC `IDFB…` in the header block + `Particulars`/`Debit`/`Credit` columns; INR converted at the Setup rate |
 | Rogers Bank | CSV with header | `Merchant Name`, or `Posted Date` + `Activity…` columns, or "rogers" in the file name |
 | Old Google Sheet | Master Data CSV export | `Debit (CAD)` + `Account` columns |
 | Old Google Sheet | Categories CSV export | `Keyword` + `Category` columns (imported as sorting rules) |

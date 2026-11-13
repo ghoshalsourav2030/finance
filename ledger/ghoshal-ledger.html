@@ -181,7 +181,8 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
       <div><b>CIBC chequing</b>Same steps on the chequing account. You confirm the account name before adding.</div>
       <div><b>Rogers Bank Mastercard</b>Upload the monthly PDF statement, or a CSV from the Rogers Bank site.</div>
       <div><b>ICICI Bank</b>Internet banking → Accounts → Detailed statement → download as XLS. Amounts are converted from INR at the rate in Setup.</div>
-      <div><b>Simplii, Wealthsimple, IDFC</b>Any CSV or Excel file with a header row. The first time, you match its columns once and the page remembers the layout.</div>
+      <div><b>IDFC FIRST Bank</b>Net banking → Account statement → download as Excel. Amounts are converted from INR at the rate in Setup.</div>
+      <div><b>Simplii, Wealthsimple</b>Any CSV or Excel file with a header row. The first time, you match its columns once and the page remembers the layout.</div>
       <div><b>Old Google Sheet</b>In the sheet, open <i>Master Data</i> → File → Download → CSV, then drop it here. Do the same for <i>Categories</i> to bring your keyword rules.</div>
     </div>
   </section>
@@ -261,7 +262,7 @@ function cfg(){ const c=S.cfg||{}; return { kinds:c.kinds||{}, budgets:c.budgets
 // ---------- derived data ----------
 function merchantKey(ds){
   let s = String(ds).toUpperCase()
-    .replace(/ELECTRONIC FUNDS TRANSFER|PRE-?AUTHORI[SZ]ED DEBIT|INTERNET BANKING|POINT OF SALE|INTERAC|RETAIL PURCHASE|INTERNET BILL PAY|E-TRANSFER|FULFILL REQUEST|BRANCH TRANSACTION|AUTOMATED BANKING MACHINE|\bSQ \*|\bTST-|\bPAY\b/g," ")
+    .replace(/ELECTRONIC FUNDS TRANSFER|PRE-?AUTHORI[SZ]ED DEBIT|INTERNET BANKING|POINT OF SALE|INTERAC|RETAIL PURCHASE|INTERNET BILL PAY|E-TRANSFER|FULFILL REQUEST|BRANCH TRANSACTION|AUTOMATED BANKING MACHINE|\bSQ \*|\bTST-|\bPAY\b|\b(UPI|DR|CR|IMPS|NEFT|RTGS|BIL|INFT|ONL|MMT|ACH|ATD|CMS)\b/g," ")
     .replace(/'/g,"").replace(/[^A-Z& ]/g," ").replace(/\s+/g," ").trim();
   const stop = new Set(["ON","BC","QC","AB","MB","NB","NS","CA","MISSISSAUGA","TORONTO","BRAMPTON","ETOBICOKE","OAKVILLE","THE"]);
   const w = s.split(" ").filter(x => x.length>1 && !stop.has(x));
@@ -541,7 +542,7 @@ function parseDate(s, fmt){
   if ((m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
   if ((m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/))){ let y = m[3].length===2 ? "20"+m[3] : m[3]; let a=+m[1], b=+m[2];
     if (fmt==="MDY" || (fmt!=="DMY" && a<=12 && b>12)) [a,b] = [b,a]; return `${y}-${pad(b)}-${pad(a)}`; }
-  if ((m = s.match(/^(\d{1,2})[ -]([A-Za-z]{3})[a-z]*[ -,]+(\d{4})/)) && MON[m[2][0].toUpperCase()+m[2].slice(1,3).toLowerCase()]) return `${m[3]}-${pad(MON[m[2][0].toUpperCase()+m[2].slice(1,3).toLowerCase()])}-${pad(m[1])}`;
+  if ((m = s.match(/^(\d{1,2})[ -]([A-Za-z]{3})[a-z]*[ ,-]+(\d{2,4})/)) && MON[m[2][0].toUpperCase()+m[2].slice(1,3).toLowerCase()]) return `${m[3]}-${pad(MON[m[2][0].toUpperCase()+m[2].slice(1,3).toLowerCase()])}-${pad(m[1])}`;
   if ((m = s.match(/^([A-Za-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})/)) && MON[m[1][0].toUpperCase()+m[1].slice(1,3).toLowerCase()]) return `${m[3]}-${pad(MON[m[1][0].toUpperCase()+m[1].slice(1,3).toLowerCase()])}-${pad(m[2])}`;
   return null;
 }
@@ -565,6 +566,7 @@ async function readFile(file){
   } else rows = parseCSV(await file.text());
   if (!rows.length) return {name, error:"This file is empty."};
   const hi = rows.slice(0, 40).findIndex(r => r.length>=3 && r.some(c => /date/i.test(c)) && r.some(c => /amount|debit|credit|withdraw|deposit|funds/i.test(c)) && !r.some(c => looksLikeDate(c)));
+  const preamble = hi>0 ? rows.slice(0, hi).flat().join(" ") : "";
   if (hi>0) rows = rows.slice(hi);
   const h = rows[0].map(x => x.trim());
   if (h.includes("Debit (CAD)") && h.includes("Account")) return readLedger(name, rows);
@@ -572,6 +574,7 @@ async function readFile(file){
   if (hl.includes("merchant name") || (hl.includes("posted date") && hl.some(x => x.startsWith("activity"))) || (/rogers/i.test(name) && hl.some(x => /amount/.test(x)))) return readRogersCsv(name, rows);
   if (h.includes("Keyword") && h.includes("Category")) return readCategories(name, rows);
   if (hl.includes("transaction remarks") && hl.some(x => x.startsWith("withdrawal amount"))) return readIciciStatement(name, rows);
+  if ((/IDFB0|IDFC FIRST/i.test(preamble) || /idfc/i.test(name)) && hl.includes("particulars") && hl.includes("debit") && hl.includes("credit")) return readIdfcStatement(name, rows, preamble);
   if (/^\d{4}-\d{2}-\d{2}$/.test(h[0]||"")){
     const card = rows.some(r => r.length>=5 && /\d{4}\*+\d{3,4}/.test(r[4]||""));
     const items = rows.map(r => ({d:r[0].trim(), ds:(r[1]||"").trim(), dr:Math.abs(num(r[2])), cr:Math.abs(num(r[3]))})).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.d));
@@ -646,6 +649,19 @@ function readIciciStatement(name, rows){
   }
   if (!items.length) return {name, error:"No transactions found in this ICICI statement."};
   return {name, kind:"ICICI Bank statement", account:"ICICI", items, cu};
+}
+function readIdfcStatement(name, rows, preamble){
+  const h = rows[0].map(x => String(x).trim().toLowerCase()); const at = re => h.findIndex(x => re.test(x));
+  const I = { d: at(/^transaction date$/)>=0 ? at(/^transaction date$/) : at(/date/), ds: at(/^particulars$/), dr: at(/^debit/), cr: at(/^credit/) };
+  const cu = ((preamble.match(/CURRENCY\s+([A-Z]{3})/i)||[0,"INR"])[1]).toUpperCase();
+  const items = [];
+  for (const r of rows.slice(1)){
+    const d = parseDate(r[I.d], "DMY"); if (!d) continue;
+    const dr = Math.abs(num(r[I.dr])), cr = Math.abs(num(r[I.cr])); if (!dr && !cr) continue;
+    items.push({d, ds:String(r[I.ds]||"").trim().replace(/\s+/g," "), dr, cr});
+  }
+  if (!items.length) return {name, error:"No transactions found in this IDFC FIRST statement."};
+  return {name, kind:"IDFC FIRST Bank statement", account:"IDFC", items, cu};
 }
 let xlsxReady = null;
 function loadSheetJs(){
