@@ -189,6 +189,7 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
   </section>
 
   <section class="view" id="v-rainy" hidden>
+    <div class="card" id="rdCorpus"></div>
     <div class="kpis" id="rdKpis"></div>
     <div class="card">
       <div class="head"><h2>If income stops</h2><span class="note" id="rdNote"></span></div>
@@ -816,6 +817,8 @@ const ATYPES = {
   rrsp:  {label:"RRSP", tier:4, taxed:true, use:"Taxable. The bank holds back 10–30% up front; a low-income layoff year is the cheapest time to withdraw."},
   grrsp: {label:"Group RRSP (employer)", tier:4, taxed:true, use:"Not locked in. Your plan may limit withdrawals while you are employed; after you leave you can withdraw or move it to a personal RRSP."},
   lic:   {label:"Life insurance with cash value (LIC)", tier:5, taxed:false, use:"Use last. Borrow against the policy before surrendering it; enter the surrender value, not the sum assured."},
+  property: {label:"Property", tier:99, taxed:false, use:"Not counted in the runway: selling takes months. Rent from it can go in Other income."},
+  loan:  {label:"Loan or mortgage (amount owed)", tier:99, taxed:false, use:"Subtracted from the total. Enter what you still owe."},
   resp:  {label:"RESP", tier:9, taxed:false, use:"For the children's education. Left out: withdrawing contributions early loses the government grants."},
   other: {label:"Other", tier:3, taxed:false, use:""}
 };
@@ -855,7 +858,7 @@ function renderRainy(){
   let liquid = 0, retire = 0, resp = 0;
   for (const a of assets){ const t = ATYPES[a.type]||ATYPES.other, v = assetCad(a);
     if (v===null){ missing.push(a.name); continue; }
-    if (a.type==="resp"){ resp += v; continue; }
+    if (a.type==="resp" || a.type==="property" || a.type==="loan"){ if (a.type==="resp") resp += v; continue; }
     const net = t.taxed ? v*(1-tax) : v; pool.push({tier:t.tier, amt:net, label:a.name});
     if (t.tier<=2) liquid += v; else if (a.type!=="lic") retire += v; }
   const {sums, first, last} = spendAverages();
@@ -871,6 +874,19 @@ function renderRainy(){
     ["Lasts on necessities", runway(sims[0][3]), `From ${mLabel(P.layoff)}, after EI and benefits`]
   ].map(([l,v,s]) => `<div class="kpi"><span class="lab">${l}</span><span class="val">${v}</span><span class="sub">${esc(s)}</span></div>`).join("");
   $("#rdNote").textContent = missing.length ? `${missing.length} ${missing.length===1?"account has":"accounts have"} no balance yet: ${missing.join(", ")}` : "Savings are used in order: cash, TFSA and India, then FHSA, then RRSPs (after tax). RESP is left alone.";
+  // total corpus
+  const GROUPS = [["Cash", ["cash"], "var(--s3)"], ["Investments (TFSA, FHSA, RRSP, RESP)", ["tfsa","fhsa","rrsp","grrsp","resp","other"], "var(--spend)"], ["India bank accounts", ["india"], "var(--income)"], ["Life insurance (LIC)", ["lic"], "var(--warn)"], ["Property", ["property"], "var(--ink-2)"]];
+  const gsum = GROUPS.map(([n,types,col]) => [n, assets.filter(a => types.includes(a.type)).reduce((t,a) => t + (assetCad(a)||0), 0), col]);
+  const owned = gsum.reduce((t,g)=>t+g[1],0), owed = assets.filter(a => a.type==="loan").reduce((t,a) => t + Math.abs(assetCad(a)||0), 0);
+  const loanMissing = assets.some(a => a.type==="loan" && assetCad(a)===null);
+  const shown = gsum.filter(g => g[1] > 0);
+  $("#rdCorpus").innerHTML = `<div class="head"><h2>Total corpus</h2><span class="note">Everything you hold, in CAD at ₹1 = $${c.fx.INR.toFixed(4)}</span></div>
+    <div class="inline" style="gap:28px;align-items:flex-end">
+      <div><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em">Net worth</div><div style="font-family:var(--f-display);font-size:34px;font-weight:700;line-height:1.1">${money0(owned-owed)}</div></div>
+      <div class="note">Owned ${money0(owned)}${owed?` · owed ${money0(owed)}`:""}${loanMissing?" · add the amount still owed on your loans":""}</div>
+    </div>
+    <div class="split" role="img" aria-label="${shown.map(g=>`${g[0]} ${money0(g[1])}`).join(", ")}">${shown.map(g=>`<div style="width:${g[1]/Math.max(1,owned)*100}%;background:${g[2]}" title="${esc(g[0])}: ${money0(g[1])}"></div>`).join("")}</div>
+    <div class="legend" style="flex-wrap:wrap">${shown.map(g=>`<span><i style="background:${g[2]}"></i>${esc(g[0])} ${money0(g[1])} (${Math.round(g[1]/Math.max(1,owned)*100)}%)</span>`).join("")}${owed?`<span><i style="background:var(--bad)"></i>Loans −${money0(owed)}</span>`:""}</div>`;
   // inputs
   const inp = (k, label, type, extra="") => `<label>${label}<input type="${type}" data-pk="${k}" value="${esc(P[k])}" ${extra}${dis}></label>`;
   $("#rdInputs").innerHTML = inp("layoff","Last paycheque month","month") + inp("severance","Severance / final pay (CAD)","number","step=100 min=0")
