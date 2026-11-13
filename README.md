@@ -23,6 +23,10 @@ Each category counts as **Spending**, **Income** or **Transfer** (set in Setup).
 - A card bill paid from chequing (category *Credit Cards*) is a transfer **when** an uploaded card statement shows a payment of the same amount within 7 days. Otherwise it is counted as spending, so a card with no uploaded statement still shows up.
 - Indian accounts are converted to CAD at upload, using the INR rate in Setup.
 
+### Rainy day tab
+
+Balances for bank, TFSA, FHSA, RRSP, group RRSP, RESP and India accounts are entered per account (stored in the page's `assets` collection) and updated monthly. The tab projects how long savings last after the last paycheque, month by month, for three spending levels taken from the last six full months: necessities only, necessities plus kids' activities, and current spending. Income during the layoff (EI, spouse's EI, CCB, severance) is set on the tab and saved in `plan/main`. Savings are drawn in order: cash, then TFSA and India accounts, then FHSA, then RRSPs after an adjustable tax estimate; RESP is excluded. Each category can be marked as a necessity, a kids' activity or an extra.
+
 ### Duplicates and saving
 
 - A transaction is a duplicate when the account, date and amount match one already saved (identical same-day charges are counted, not merged).

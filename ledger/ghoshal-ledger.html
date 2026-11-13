@@ -7,18 +7,18 @@
 :root{
   --bg:#f4f6f5; --surface:#ffffff; --sunk:#eaeeec; --ink:#14201c; --ink-2:#465651; --muted:#76847f; --line:#dbe2df;
   --accent:#0d6a5b; --accent-ink:#ffffff; --accent-soft:#d9efe9;
-  --spend:#2a78d6; --income:#eb6834; --good:#1d7a3b; --warn:#a86400; --bad:#c03a39;
+  --spend:#2a78d6; --income:#eb6834; --s3:#1baf7a; --good:#1d7a3b; --warn:#a86400; --bad:#c03a39;
   --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#101614; --surface:#18201d; --sunk:#1f2926; --ink:#e8eeeb; --ink-2:#b2bfba; --muted:#8a9792; --line:#2a3531;
   --accent:#43b89f; --accent-ink:#06201a; --accent-soft:#173a32;
-  --spend:#3987e5; --income:#d95926; --good:#4cc072; --warn:#e2a43c; --bad:#ec6c6b; color-scheme:dark}}
+  --spend:#3987e5; --income:#d95926; --s3:#199e70; --good:#4cc072; --warn:#e2a43c; --bad:#ec6c6b; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#101614; --surface:#18201d; --sunk:#1f2926; --ink:#e8eeeb; --ink-2:#b2bfba; --muted:#8a9792; --line:#2a3531;
   --accent:#43b89f; --accent-ink:#06201a; --accent-soft:#173a32;
-  --spend:#3987e5; --income:#d95926; --good:#4cc072; --warn:#e2a43c; --bad:#ec6c6b; color-scheme:dark}
+  --spend:#3987e5; --income:#d95926; --s3:#199e70; --good:#4cc072; --warn:#e2a43c; --bad:#ec6c6b; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
@@ -121,6 +121,7 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
     <a href="#transactions" data-v="transactions">Transactions</a>
     <a href="#review" data-v="review" data-edit>Review<span class="badge" id="revBadge" hidden></span></a>
     <a href="#import" data-v="import" data-edit>Upload</a>
+    <a href="#rainy" data-v="rainy">Rainy day</a>
     <a href="#setup" data-v="setup">Setup</a>
   </nav>
 </div></header>
@@ -184,6 +185,24 @@ td select{padding:3px 6px;font-size:12px;max-width:170px}
       <div><b>IDFC FIRST Bank</b>Net banking → Account statement → download as Excel. Amounts are converted from INR at the rate in Setup.</div>
       <div><b>Simplii, Wealthsimple</b>Any CSV or Excel file with a header row. The first time, you match its columns once and the page remembers the layout.</div>
       <div><b>Old Google Sheet</b>In the sheet, open <i>Master Data</i> → File → Download → CSV, then drop it here. Do the same for <i>Categories</i> to bring your keyword rules.</div>
+    </div>
+  </section>
+
+  <section class="view" id="v-rainy" hidden>
+    <div class="kpis" id="rdKpis"></div>
+    <div class="card">
+      <div class="head"><h2>If income stops</h2><span class="note" id="rdNote"></span></div>
+      <div class="mapgrid" id="rdInputs"></div>
+      <div class="chart" id="rdChart"></div>
+      <div class="legend" id="rdLegend"></div>
+      <div id="rdOrder"></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="head"><h2>Savings and investments</h2><span class="note">Update the balances from each app once a month</span></div>
+        <div class="tablewrap" id="rdAccounts"></div>
+        <div class="inline" data-edit><input type="text" id="rdNewName" placeholder="Account, e.g. Wealthsimple TFSA" style="width:200px" aria-label="New account name"><select id="rdNewType" aria-label="New account type"></select><button id="rdAdd">Add account</button></div>
+      </div>
+      <div class="card"><div class="head"><h2>Necessities and extras</h2><span class="note" id="rdCatNote"></span></div><div class="tablewrap" id="rdCats"></div></div>
     </div>
   </section>
 
@@ -788,8 +807,130 @@ async function handleFiles(list){
   renderFiles();
 }
 
+// ---------- rainy day ----------
+const ATYPES = {
+  cash:  {label:"Chequing / savings", tier:1, taxed:false, use:"Spend first."},
+  tfsa:  {label:"TFSA", tier:2, taxed:false, use:"Tax-free to withdraw. The room comes back the next January, so you can refill it later."},
+  india: {label:"India bank account", tier:2, taxed:false, use:"NRE money can be sent to Canada freely; NRO needs forms 15CA/15CB."},
+  fhsa:  {label:"FHSA", tier:3, taxed:true, use:"Taxed as income if not used for a first home. Moving it to an RRSP keeps the tax shelter."},
+  rrsp:  {label:"RRSP", tier:4, taxed:true, use:"Taxable. The bank holds back 10–30% up front; a low-income layoff year is the cheapest time to withdraw."},
+  grrsp: {label:"Group RRSP (employer)", tier:4, taxed:true, use:"Not locked in. Your plan may limit withdrawals while you are employed; after you leave you can withdraw or move it to a personal RRSP."},
+  resp:  {label:"RESP", tier:9, taxed:false, use:"For the children's education. Left out: withdrawing contributions early loses the government grants."},
+  other: {label:"Other", tier:3, taxed:false, use:""}
+};
+const PLAN_DEFAULT = { layoff:"2027-02", eiWeekly:700, eiWeeks:26, wifeEi:1495, wifeEiEnd:"2027-03", ccb:461, severance:0, other:0, taxRate:20, horizon:24,
+  essentials:["Rent","Groceries","Car Lease","Insurance","Car Insurance","Home Insurance","Home Loan","Kids Education","Utilities","Phone","Internet","Gas","Transport","Health","Bank Fees","India Property"],
+  kids:["Taekwondo"] };
+function plan(){ return Object.assign({}, PLAN_DEFAULT, S.plan||{}); }
+function savePlan(patch){ const next = Object.assign({}, S.plan||{}, patch); S.plan = next; enqueue(() => S.db.doc("plan/main").set(next)).catch(e => toast(errMsg(e))); renderRainy(); }
+function assetCad(a){ const v = +a.value; if (!isFinite(v) || a.value===null || a.value==="" || a.value===undefined) return null; return (a.cur==="INR") ? v*cfg().fx.INR : v; }
+function spendAverages(){
+  const last = addMonths(thisMonth, -1), first = addMonths(thisMonth, -6), sums = {};
+  for (const r of S.rows){ const m = r.d.slice(0,7); if (m<first || m>last || r._k!=="spend") continue; const c = r.c||"Uncategorized"; sums[c] = (sums[c]||0) + (r.dr||0)-(r.cr||0); }
+  for (const k in sums) sums[k] /= 6; return {sums, first, last};
+}
+function simulate(pool, monthly, P, months){
+  // pool: [{tier, amt, label}] spendable after tax; returns balance per month and depletion info
+  const tiers = pool.map(x => Object.assign({}, x)).sort((a,b) => a.tier-b.tier);
+  const eiMonths = Math.ceil((+P.eiWeeks||0)/4.33), eiMonthly = (+P.eiWeekly||0)*52/12*0.9;
+  const out = []; let short = null;
+  for (let i=0;i<=months;i++){
+    const m = addMonths(P.layoff, i);
+    let inc = (+P.ccb||0) + (+P.other||0) + (i>=1 && i<=eiMonths ? eiMonthly : 0) + (m <= P.wifeEiEnd ? (+P.wifeEi||0) : 0) + (i===0 ? (+P.severance||0) : 0);
+    let need = monthly - inc;
+    if (need < 0){ tiers[0] ? tiers[0].amt -= need : null; need = 0; }
+    for (const t of tiers){ if (need<=0) break; const take = Math.min(t.amt, need); t.amt -= take; need -= take; }
+    if (need > 0.5 && short===null) short = i;
+    out.push({m, bal: Math.max(0, tiers.reduce((s,t)=>s+t.amt,0)), inc});
+  }
+  return {out, short};
+}
+function renderRainy(){
+  if (!S.derived) return; const P = plan(), c = cfg(), dis = S.canEdit ? "" : " disabled";
+  document.querySelectorAll("#v-rainy [data-edit]").forEach(e => e.hidden = !S.canEdit);
+  const assets = (S.assets||[]).slice().sort((a,b) => (ATYPES[a.type]||ATYPES.other).tier - (ATYPES[b.type]||ATYPES.other).tier || String(a.name).localeCompare(b.name));
+  const tax = Math.min(60, Math.max(0, +P.taxRate||0))/100;
+  const pool = [], missing = [];
+  let liquid = 0, retire = 0, resp = 0;
+  for (const a of assets){ const t = ATYPES[a.type]||ATYPES.other, v = assetCad(a);
+    if (v===null){ missing.push(a.name); continue; }
+    if (a.type==="resp"){ resp += v; continue; }
+    const net = t.taxed ? v*(1-tax) : v; pool.push({tier:t.tier, amt:net, label:a.name});
+    if (t.tier<=2) liquid += v; else retire += v; }
+  const {sums, first, last} = spendAverages();
+  const ess = P.essentials.reduce((s,k)=>s+(sums[k]||0),0), kids = P.kids.reduce((s,k)=>s+(sums[k]||0),0);
+  const all = Object.values(sums).reduce((a,b)=>a+b,0);
+  const scen = [["Necessities only", ess, "var(--s3)"], ["Necessities + kids' activities", ess+kids, "var(--spend)"], ["Current spending", all, "var(--income)"]];
+  const sims = scen.map(([n,v,col]) => [n, v, col, simulate(pool, v, P, +P.horizon||24)]);
+  const runway = s => s.short===null ? `${P.horizon}+ months` : `${s.short} ${s.short===1?"month":"months"}`;
+  $("#rdKpis").innerHTML = [
+    ["Ready cash", money0(liquid), "Bank, TFSA and India accounts"],
+    ["Retirement savings", money0(retire), `RRSP and FHSA before about ${Math.round(tax*100)}% tax`],
+    ["Necessities a month", money0(ess), `Average ${mLabel(first)}–${mLabel(last)}`],
+    ["Lasts on necessities", runway(sims[0][3]), `From ${mLabel(P.layoff)}, after EI and benefits`]
+  ].map(([l,v,s]) => `<div class="kpi"><span class="lab">${l}</span><span class="val">${v}</span><span class="sub">${esc(s)}</span></div>`).join("");
+  $("#rdNote").textContent = missing.length ? `${missing.length} ${missing.length===1?"account has":"accounts have"} no balance yet: ${missing.join(", ")}` : "Savings are used in order: cash, TFSA and India, then FHSA, then RRSPs (after tax). RESP is left alone.";
+  // inputs
+  const inp = (k, label, type, extra="") => `<label>${label}<input type="${type}" data-pk="${k}" value="${esc(P[k])}" ${extra}${dis}></label>`;
+  $("#rdInputs").innerHTML = inp("layoff","Last paycheque month","month") + inp("severance","Severance / final pay (CAD)","number","step=100 min=0")
+    + inp("eiWeekly","Your EI a week (before tax)","number","step=10 min=0") + inp("eiWeeks","Weeks of EI","number","step=1 min=0 max=45")
+    + inp("wifeEi","Patrali's EI a month","number","step=10 min=0") + inp("wifeEiEnd","Patrali's EI ends","month")
+    + inp("ccb","CCB a month","number","step=1 min=0") + inp("other","Other income a month","number","step=50 min=0")
+    + inp("taxRate","Tax on RRSP/FHSA withdrawals %","number","step=1 min=0 max=60");
+  $("#rdInputs").querySelectorAll("[data-pk]").forEach(el => el.onchange = () => { const k = el.dataset.pk; savePlan({[k]: el.type==="number" ? (+el.value||0) : el.value}); });
+  // chart
+  drawRunway(sims, P);
+  $("#rdLegend").innerHTML = sims.map(([n,v,col,s]) => `<span><i style="background:${col}"></i>${esc(n)}: ${money0(v)}/mo, ${s.short===null?"lasts the whole period":"runs out in "+mLabel(addMonths(P.layoff,s.short))}</span>`).join("");
+  $("#rdOrder").innerHTML = `<div class="note">Income assumed after the last paycheque: your EI at about 90% after tax from the second month for ${P.eiWeeks} weeks, Patrali's EI until ${mLabel(P.wifeEiEnd)}, and CCB. Severance can delay when EI starts.</div>`;
+  // accounts
+  $("#rdAccounts").innerHTML = assets.length ? `<table><thead><tr><th>Account</th><th class="num">Balance</th><th>As of</th>${S.canEdit?"<th></th>":""}</tr></thead><tbody>${assets.map(a => { const t = ATYPES[a.type]||ATYPES.other, v = assetCad(a);
+      return `<tr><td style="min-width:0;max-width:280px"><b>${esc(a.name)}</b><div class="note">${esc(t.label)}. ${esc(t.use)}</div></td>
+        <td class="num"><input type="number" step="0.01" data-av="${esc(a.id)}" value="${a.value??""}" placeholder="Enter" style="width:110px" aria-label="Balance of ${esc(a.name)}"${dis}> ${a.cur==="INR"?"₹":"$"}${a.cur==="INR"&&v!==null?`<div class="note">${money0(v)}</div>`:""}</td>
+        <td><input type="date" data-ad="${esc(a.id)}" value="${esc(a.asOf||"")}" aria-label="Balance date for ${esc(a.name)}"${dis}></td>
+        ${S.canEdit?`<td><button class="link" data-ax="${esc(a.id)}">Remove</button></td>`:""}</tr>`; }).join("")}</tbody></table>`
+    : `<div class="empty">Add your bank, TFSA, RRSP, FHSA and RESP balances to see how long they last.</div>`;
+  if (resp) $("#rdAccounts").insertAdjacentHTML("beforeend", `<div class="note">RESP balance ${money0(resp)} is not counted.</div>`);
+  const upd = (id, patch) => enqueue(() => S.db.doc("assets/"+id).update(patch)).catch(e => toast(errMsg(e)));
+  $("#rdAccounts").querySelectorAll("[data-av]").forEach(el => el.onchange = () => upd(el.dataset.av, {value: el.value===""?null:+el.value, asOf: new Date().toISOString().slice(0,10)}));
+  $("#rdAccounts").querySelectorAll("[data-ad]").forEach(el => el.onchange = () => upd(el.dataset.ad, {asOf: el.value}));
+  $("#rdAccounts").querySelectorAll("[data-ax]").forEach(el => el.onclick = () => enqueue(() => S.db.doc("assets/"+el.dataset.ax).delete()).catch(e => toast(errMsg(e))));
+  fillSelect($("#rdNewType"), Object.entries(ATYPES).map(([k,t]) => [k,t.label]), $("#rdNewType").value || "tfsa");
+  // categories
+  $("#rdCatNote").textContent = `Monthly average, ${mLabel(first)}–${mLabel(last)}`;
+  const list = Object.entries(sums).filter(([,v]) => v>1).sort((a,b)=>b[1]-a[1]);
+  const kindOf = k => P.essentials.includes(k) ? "need" : P.kids.includes(k) ? "kids" : "extra";
+  $("#rdCats").innerHTML = `<table><thead><tr><th>Category</th><th class="num">A month</th><th>Treat as</th></tr></thead><tbody>${list.map(([k,v]) => `<tr><td>${esc(k)}</td><td class="num">${money0(v)}</td>
+      <td><select data-ck="${esc(k)}" aria-label="Treat ${esc(k)} as"${dis}><option value="need"${kindOf(k)==="need"?" selected":""}>Necessity</option><option value="kids"${kindOf(k)==="kids"?" selected":""}>Kids' activity</option><option value="extra"${kindOf(k)==="extra"?" selected":""}>Extra (cut first)</option></select></td></tr>`).join("")}
+    <tr><td><b>Necessities</b></td><td class="num"><b>${money0(ess)}</b></td><td></td></tr><tr><td><b>Extras you could cut</b></td><td class="num"><b>${money0(all-ess-kids)}</b></td><td></td></tr></tbody></table>`;
+  $("#rdCats").querySelectorAll("[data-ck]").forEach(el => el.onchange = () => { const k = el.dataset.ck, P2 = plan();
+    const essentials = P2.essentials.filter(x => x!==k), kidsL = P2.kids.filter(x => x!==k);
+    if (el.value==="need") essentials.push(k); if (el.value==="kids") kidsL.push(k); savePlan({essentials, kids: kidsL}); });
+}
+function drawRunway(sims, P){
+  const el = $("#rdChart"); const months = sims[0][3].out.length; const W = 760, H = 240, L = 56, R = 10, T = 10, B = 26;
+  const max = niceMax(Math.max(1, ...sims.flatMap(s => s[3].out.map(o => o.bal))));
+  const iw = W-L-R, ih = H-T-B, x = i => L + iw*i/(months-1), y = v => T + ih - v/max*ih;
+  let g = "";
+  for (let i=0;i<=4;i++){ const v = max*i/4, yy = y(v); g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="${L-8}" y="${yy+4}" text-anchor="end">${v>=1000?"$"+(v/1000).toFixed(v%1000?1:0)+"k":"$"+v}</text>`; }
+  for (let i=0;i<months;i+=3) g += `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${mShort(addMonths(P.layoff,i))} ${addMonths(P.layoff,i).slice(2,4)}</text>`;
+  for (const [n,v,col,s] of sims){ g += `<polyline fill="none" stroke="${col}" stroke-width="2" points="${s.out.map((o,i)=>`${x(i).toFixed(1)},${y(o.bal).toFixed(1)}`).join(" ")}"/>`;
+    if (s.short!==null) g += `<circle cx="${x(s.short)}" cy="${y(0)}" r="5" fill="${col}" stroke="var(--surface)" stroke-width="2"/>`; }
+  g += `<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--muted)"/>`;
+  for (let i=0;i<months;i++) g += `<rect class="hit" data-i="${i}" x="${x(i)-iw/(months-1)/2}" y="${T}" width="${iw/(months-1)}" height="${ih}" fill="transparent"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Savings left each month after layoff, three spending levels">${g}</svg><div class="tip" hidden></div>`;
+  const tip = el.querySelector(".tip");
+  el.querySelectorAll(".hit").forEach(h => { const i = +h.dataset.i;
+    h.addEventListener("mouseenter", () => { const ob = el.getBoundingClientRect(), bb = h.getBoundingClientRect();
+      tip.innerHTML = `<b>${mLabel(addMonths(P.layoff,i))}</b><br>Income ${money0(sims[0][3].out[i].inc)}<br>` + sims.map(([n,,,s]) => `${esc(n)}: ${money0(s.out[i].bal)} left`).join("<br>");
+      tip.hidden = false; tip.style.left = Math.min(Math.max(bb.left-ob.left+bb.width/2, 110), ob.width-110)+"px"; tip.style.top = "8px"; h.style.fill = "color-mix(in srgb, var(--ink) 7%, transparent)"; });
+    h.addEventListener("mouseleave", () => { tip.hidden = true; h.style.fill = ""; }); });
+}
+$("#rdAdd").onclick = () => { const name = $("#rdNewName").value.trim(), type = $("#rdNewType").value; if (!name){ toast("Type a name for the account."); return; }
+  const id = norm(name).toLowerCase().slice(0,40) || ("a"+Date.now());
+  enqueue(() => S.db.doc("assets/"+id).set({name, type, cur:"CAD", value:null, asOf:""})).then(() => { $("#rdNewName").value = ""; }).catch(e => toast(errMsg(e))); };
+
 // ---------- routing ----------
-const VIEWS = ["overview","transactions","review","import","setup"];
+const VIEWS = ["overview","transactions","review","import","rainy","setup"];
 function route(){ let v = (location.hash||"").slice(1); if (!VIEWS.includes(v)) v = "overview"; if (!S.canEdit && (v==="import"||v==="review")) v = "overview"; S.view = v;
   VIEWS.forEach(x => { $("#v-"+x).hidden = x!==v; });
   document.querySelectorAll("#tabs a").forEach(a => { if (a.dataset.v===v) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
@@ -805,7 +946,7 @@ function render(){
       ? `<h2>Start by uploading your history</h2><div class="muted">Open <a href="#import">Upload</a> and drop the Master Data CSV from your Google Sheet, then your CIBC card CSV and Rogers PDF statements.</div>`
       : `<h2>No transactions yet</h2><div class="muted">This ledger is empty. Sourav adds statements from the Upload tab.</div>`; }
   else gate.hidden = true;
-  if (S.view==="overview") renderOverview(); else if (S.view==="transactions") renderTransactions(); else if (S.view==="review") renderReview(); else if (S.view==="setup") renderSetup(); else if (S.view==="import") renderFiles();
+  if (S.view==="overview") renderOverview(); else if (S.view==="transactions") renderTransactions(); else if (S.view==="review") renderReview(); else if (S.view==="setup") renderSetup(); else if (S.view==="import") renderFiles(); else if (S.view==="rainy") renderRainy();
 }
 
 // ---------- events ----------
@@ -862,6 +1003,8 @@ async function boot(){
     $("#upHist").innerHTML = list.length ? `<table><thead><tr><th>When</th><th>File</th><th>Account</th><th>Dates</th><th class="num">Saved</th><th class="num">Already there</th></tr></thead><tbody>${
       list.map(u => `<tr><td class="date">${esc(String(u.at||"").slice(0,16).replace("T"," "))}</td><td class="desc">${esc(u.name)}</td><td>${esc(u.account)}</td><td class="date">${esc(u.from||"")} to ${esc(u.to||"")}</td><td class="num">${u.added||0}</td><td class="num">${u.skipped||0}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No uploads yet.</div>`;
   }, () => {});
+  db.collection("assets").limit(200).onSnapshot(snap => { S.assets = snap.docs.map(d => Object.assign({id:d.id}, d.data()||{})); if (S.loaded && S.view==="rainy") renderRainy(); }, () => {});
+  db.doc("plan/main").onSnapshot(snap => { S.plan = snap.exists ? (snap.data()||{}) : {}; if (S.loaded && S.view==="rainy") renderRainy(); }, () => {});
   db.doc("cfg/main").onSnapshot(snap => { S.cfg = snap.exists ? (snap.data()||{}) : {}; gotCfg = true; ready(); },
     e => { S.cfg = {}; gotCfg = true; ready(); });
 }
