@@ -815,6 +815,7 @@ const ATYPES = {
   fhsa:  {label:"FHSA", tier:3, taxed:true, use:"Taxed as income if not used for a first home. Moving it to an RRSP keeps the tax shelter."},
   rrsp:  {label:"RRSP", tier:4, taxed:true, use:"Taxable. The bank holds back 10–30% up front; a low-income layoff year is the cheapest time to withdraw."},
   grrsp: {label:"Group RRSP (employer)", tier:4, taxed:true, use:"Not locked in. Your plan may limit withdrawals while you are employed; after you leave you can withdraw or move it to a personal RRSP."},
+  lic:   {label:"Life insurance with cash value (LIC)", tier:5, taxed:false, use:"Use last. Borrow against the policy before surrendering it; enter the surrender value, not the sum assured."},
   resp:  {label:"RESP", tier:9, taxed:false, use:"For the children's education. Left out: withdrawing contributions early loses the government grants."},
   other: {label:"Other", tier:3, taxed:false, use:""}
 };
@@ -856,7 +857,7 @@ function renderRainy(){
     if (v===null){ missing.push(a.name); continue; }
     if (a.type==="resp"){ resp += v; continue; }
     const net = t.taxed ? v*(1-tax) : v; pool.push({tier:t.tier, amt:net, label:a.name});
-    if (t.tier<=2) liquid += v; else retire += v; }
+    if (t.tier<=2) liquid += v; else if (a.type!=="lic") retire += v; }
   const {sums, first, last} = spendAverages();
   const ess = P.essentials.reduce((s,k)=>s+(sums[k]||0),0), kids = P.kids.reduce((s,k)=>s+(sums[k]||0),0);
   const all = Object.values(sums).reduce((a,b)=>a+b,0);
